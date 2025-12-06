@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="it">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8"/>
+    <title>Inpainter - Mask Editor</title>
+    <link rel="stylesheet" href="{% static 'image_editor/css/style.css' %}"/>
+</head>
+<body>
+
+<div class="page-wrapper">
+    <!-- HEADER -->
+    <header class="site-header">
+        <div class="header-inner">
+            <div class="logo-area">
+                <div class="logo-circle">IN</div>
+                <div class="logo-text">
+                    <span class="logo-title">Inpainter</span>
+                    <span class="logo-subtitle">Mask Editor</span>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <a href="#" class="nav-link">Home</a>
+                <a href="#" class="nav-link">Guida</a>
+                <a href="#" class="nav-link">Documentazione</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="site-main">
+        <section class="hero">
+            <!-- Testo descrittivo -->
+            <div class="hero-text">
+                <h1>Modifica le tue immagini di oggetti</h1>
+                <p class="hero-lead">
+                    Maschera interi oggetti o parti nell'immagine e scrivi cosa desidereresti al suo posto. Ti verranno
+                    fornite quante varianti desideri
+                </p>
+
+                <div class="hero-steps">
+                    <div class="hero-step">
+                        <span class="hero-step-number">1</span>
+                        <div>
+                            <h3>Carica un'immagine</h3>
+                            <p>Scegli l'immagine che preferisci dalla tua galleria.</p>
+                        </div>
+                    </div>
+                    <div class="hero-step">
+                        <span class="hero-step-number">2</span>
+                        <div>
+                            <h3>Scegli come cambiare l'oggetto</h3>
+                            <p>Disegna una maschera sopra l'oggetto e scrivi con cosa vorresti sostituirla.</p>
+                        </div>
+                    </div>
+                    <div class="hero-step">
+                        <span class="hero-step-number">3</span>
+                        <div>
+                            <h3>Esporta in un click</h3>
+                            <p>Scegli la variante che preferisci tra i risultati e scaricala!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <form
+                    id="generationForm"
+                    method="POST"
+                    enctype="multipart/form-data"
+                    class="hero-container"
+                    action="{%url 'start_generation' %}"
+            >
+                {%csrf_token %}
+
+                <!-- COLONNA SINISTRA: CONTROLLI + GENERA -->
+                <div class="controls-column">
+                    <div id="controls">
+                        <h4>Comandi per la maschera</h4>
+                        <div class="row buttons">
+                            <button type="button" id="undo">Undo</button>
+                            <button type="button" id="redo">Redo</button>
+                        </div>
+
+                        <div class="row">
+                            <span>Strumento: </span>
+                            <input id="penTool" type="radio" name="toolRadio" value="pen" checked/>
+                            <label for="penTool">Penna</label>
+                            <input id="eraserTool" type="radio" name="toolRadio" value="eraser"/>
+                            <label for="eraserTool">Gomma</label>
+                        </div>
+
+                        <div class="row">
+                            <span>Spessore: </span>
+                            <input
+                                    type="range"
+                                    min="1"
+                                    max="50"
+                                    value="25"
+                                    class="size"
+                                    id="sizeRange"
+                                    aria-label="Size"
+                            />
+                        </div>
+
+                        <div class="row distance">
+                            <button type="button" id="clear">Pulisci</button>
+                        </div>
+
+                        <div class="row custom-fie-upload">
+                            <label for="upload">Carica immagine</label>
+                            <input id="upload" type="file" accept="image/*"/>
+                        </div>
+                    </div>
+                    <div id="controls">
+                        <h4>Comandi per la generazione</h4>
+                        <div class="row text-prompt-row">
+                            <label for="textPrompt">Descrivi la modifica:</label>
+                            {%if last_prompt%}
+                            <textarea
+                                    id="textPrompt"
+                            >{{last_prompt}}</textarea>
+                            {%else%}
+                            <textarea
+                                    id="textPrompt"
+                                    placeholder="Inserisci il prompt per la modifica..."
+                            ></textarea>
+                            {%endif%}
+                        </div>
+                        <div class="row generations-row">
+                            <label for="numGenerations">Numero di varianti:</label>
+                            <input
+                                    id="numGenerations"
+                                    type="number"
+                                    min="1"
+                                    max="4"
+                                    value="1"
+                                    aria-label="Numero di generazioni"
+                            />
+                        </div>
+
+                    </div>
+                    <button type="button" class="generation-btn-main normal js-startGeneration">
+                        Start generation
+                    </button>
+                </div>
+
+                <!-- COLONNA DESTRA: CANVAS PIÙ GRANDE -->
+                <div class="hero-editor-card">
+                    <div class="main-div">
+                        <div class="canvas-section">
+                            <div class="canvas-box">
+                                <canvas
+                                        id="canvas"
+                                        width="256"
+                                        height="256">
+                                </canvas>
+                                <canvas
+                                        id="bgCanvas"
+                                        width="256"
+                                        height="256">
+                                </canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- DOWNLOAD ZIP SOTTO I CONTROLLI -->
+                <button type="button" class="generation-btn-main small js-startGeneration">
+                    Start generation
+                </button>
+
+                <!-- QUI MOSTRO ERRORI CLIENT-->
+                <div id="formErrors" class="form-errors" aria-live="polite"></div>
+                <!-- QUI MOSTRO ERRORI SERVER -->
+                {% if errors %}
+                <div class="server-errors">
+                    <ul>
+                        {% for e in errors %}
+                        <li>{{ e }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                <!-- CAMPI HIDDEN CHE VERRANNO RIEMPITI IN JS -->
+                <input type="hidden" name="prompt" id="hiddenPrompt">
+                <input type="hidden" name="num_generations" id="hiddenNumGenerations">
+                <input type="hidden" name="original_image" id="hiddenOriginalImage">
+                <input type="hidden" name="mask_image" id="hiddenMaskImage">
+            </form>
+        </section>
+
+        <!-- SEZIONE STATO GENERAZIONE -->
+        <div id="generation-status" class="status-box" style="display: none;">
+            <span id="status-text">In attesa...</span>
+        </div>
+
+        <!-- SEZIONE RISULTATI GENERAZIONE -->
+        <section id="resultsSection" class="results-section" style="display: none;">
+            <h2>Risultati della generazione</h2>
+            <p class="results-intro">
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                Qui puoi vedere le varianti generate a partire dalla maschera e dal prompt.
+            </p>
+
+            <!-- Griglia che JS riempirà -->
+            <div id="resultsGrid" class="results-grid">
+                <!-- QUI dentro JS inserirà <figure> ... </figure> -->
+            </div>
+
+            <!-- DOWNLOAD ZIP SOTTO I CONTROLLI -->
+            <button id="downloadBtn" class="download-btn-main normal" disabled>
+                Download
+            </button>
+        </section>
+        <!-- SEZIONE INFO SOTTO -->
+        <section class="info-section">
+            <div class="info-grid">
+                <article class="info-card">
+                    <h2>Come funziona l'editor</h2>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        Donec vehicula lorem at lectus viverra, eget laoreet lacus fermentum.
+                        Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae.
+                    </p>
+                </article>
+
+                <article class="info-card">
+                    <h2>Integrazione con il tuo pipeline</h2>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        Integer luctus, massa id tincidunt aliquet, sapien nunc faucibus ligula,
+                        et hendrerit nulla leo id lacus.
+                    </p>
+                </article>
+
+                <article class="info-card">
+                    <h2>Esportazione delle maschere</h2>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        Maecenas at gravida magna. Nullam feugiat, quam sit amet
+                        elementum condimentum, ex libero auctor eros, non viverra
+                        arcu erat pretium augue.
+                    </p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+            <span class="footer-small">© 2025 Inpainter Mask Editor</span>
+        </div>
+    </footer>
+</div>
+
+<img id="hiddenImg" alt=""/>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+<script src="{% static 'image_editor/js/editor.js' %}"></script>
+</body>
+</html>
