@@ -93,7 +93,11 @@ def start_generation_view(request):
         )
 
         # Lancio task celery (il worker recupererà l'immagine da job.input_image.url)
-        run_generation.delay(job.id)
+        #run_generation.delay(job.id)
+
+        from services.generator import run_tto_job
+        run_tto_job(job)  # Esecuzione sincrona per test
+
         return JsonResponse({"ok": True, "job_id": job.id})
 
     # GET: mostra pagina vuota / stato iniziale
