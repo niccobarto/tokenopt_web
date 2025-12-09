@@ -1,8 +1,24 @@
 # image_editor/tasks.py
+import os
+import tempfile
+import requests
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from celery import shared_task
 from django.conf import settings
 from .models import GenerationJob
-import os
+
+def download_to_temp(url: str) -> str:
+    """
+    Scarica un file da URL in una directory temporanea e ritorna il path locale.
+    """
+    resp = requests.get(url)
+    resp.raise_for_status()
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=os.path.splitext(url)[1] or ".png")
+    with os.fdopen(tmp_fd, "wb") as f:
+        f.write(resp.content)
+    return tmp_path
+
 
 @shared_task
 def run_generation(job_id: int):
@@ -11,34 +27,50 @@ def run_generation(job_id: int):
     job.save(update_fields=["status"])
 
     try:
-        input_image_path = job.input_image.path
-        mask_path = job.input_mask.path if job.input_mask else None
+        # 1) URL su R2
+        input_image_url = job.input_image.url
+        mask_url = job.input_mask.url if job.input_mask else None
+
+        # 2) Scarico i file localmente sul worker
+        local_input_path = download_to_temp(input_image_url)
+        local_mask_path = download_to_temp(mask_url) if mask_url else None
 
         prompt = job.prompt
         num_generations = job.num_generations
 
-        # Cartella base di output (es. media/outputs/)
-        base_output_dir = os.path.join(settings.MEDIA_ROOT, "outputs")
-        os.makedirs(base_output_dir, exist_ok=True)
+        # 3) Chiamo la pipeline TTO che lavora su file locali
+        #    run_tto deve ritornare una lista di oggetti PIL.Image (per esempio)
+        from PIL import Image  # se ti serve qui
 
-        # Cartella specifica per questo job
-        job_output_dir = os.path.join(base_output_dir, f"job_{job.id}")
-        os.makedirs(job_output_dir, exist_ok=True)
+        generated_images_pil = run_tto(
+            input_image_path=local_input_path,
+            mask_path=local_mask_path,
+            prompt=prompt,
+            num_generations=num_generations,
+        )
 
-        # TODO: qui dentro chiamerai la tua pipeline TTO
-        # es: generated_paths = run_tto(input_image_path, mask_path, prompt, num_generations, job_output_dir)
+        # 4) Salvo ogni immagine PIL su R2 usando lo storage di Django
+        from io import BytesIO
 
-        generated_paths = []  # placeholder
+        generated_urls = []
 
+        for idx, pil_img in enumerate(generated_images_pil, start=1):
+            buffer = BytesIO()
+            pil_img.save(buffer, format="PNG")
+            buffer.seek(0)
+
+            # nome nel bucket, es: outputs/job_42/gen_01.png
+            file_name = f"outputs/job_{job.id}/gen_{idx:02d}.png"
+
+            # default_storage usa R2MediaStorage -> file va su R2
+            saved_name = default_storage.save(file_name, ContentFile(buffer.read()))
+            url = default_storage.url(saved_name)
+            generated_urls.append(url)
+
+        # 5) Aggiorno il job
         job.status = "COMPLETED"
-        job.output_dir = job_output_dir
-
-        # Se HAI il campo generated_images nel modello:
-        # job.generated_images = generated_paths
-        # job.save(update_fields=["status", "output_dir", "generated_images"])
-
-        # Se NON hai il campo generated_images:
-        job.save(update_fields=["status", "output_dir"])
+        job.generated_images = generated_urls
+        job.save(update_fields=["status", "generated_images"])
 
     except Exception as e:
         job.status = "FAILED"

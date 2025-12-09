@@ -1,22 +1,21 @@
-# image_editor/views.py
 import base64
-import os
-from io import BytesIO
-from django.shortcuts import render,redirect,get_object_or_404
-from django.http import HttpRequest, HttpResponse, JsonResponse
-from PIL import Image
+
+from django.core.files.base import ContentFile
+from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
+
 from .models import GenerationJob
 from .tasks import run_generation
-from django.conf import settings
-from django.core.files.base import ContentFile
 
-
-# Create your views here.
 
 def dataurl_to_contentfile(dataurl: str, filename: str) -> ContentFile | None:
     """
     Converte una stringa dataURL (es. 'data:image/png;base64,...')
     in un ContentFile Django con un nome di file.
+
+    NOTA: con DEFAULT_FILE_STORAGE puntato a R2, quando questo ContentFile
+    viene assegnato a un ImageField, Django lo carica automaticamente
+    su Cloudflare R2 (non sul disco locale).
     """
     if not dataurl:
         return None
@@ -27,9 +26,8 @@ def dataurl_to_contentfile(dataurl: str, filename: str) -> ContentFile | None:
         return None
 
     # header esempio: "data:image/png;base64"
-    # estensione = "png"
-    mime_part = header.split(";")[0]          # "data:image/png"
-    ext = mime_part.split("/")[-1]           # "png"
+    mime_part = header.split(";")[0]     # "data:image/png"
+    ext = mime_part.split("/")[-1]       # "png"
 
     try:
         img_bytes = base64.b64decode(b64data)
@@ -38,33 +36,39 @@ def dataurl_to_contentfile(dataurl: str, filename: str) -> ContentFile | None:
 
     return ContentFile(img_bytes, name=f"{filename}.{ext}")
 
-def start_generation_view(request):
-    """View principale
-    -GET: mostra la pagina dell'editor di maschera
-    -POST: riceve gli input (prompt,immagine, maschera) e genera le immagini con TTO
-    """
-    if request.method=="POST":
-        prompt=request.POST.get("prompt","").strip()
-        num_generations=request.POST.get("num_generations","1").strip()
-        original_dataurl=request.POST.get("original_image","").strip()
-        mask_dataurl=request.POST.get("mask_image","").strip()
 
-        #Validazione lato server parallelo a JS
-        errors=[]
+def start_generation_view(request):
+    """
+    - GET: mostra la pagina dell'editor di maschera
+    - POST: riceve gli input (prompt, immagine, maschera),
+            crea un GenerationJob e lancia il task Celery.
+
+    Le immagini vengono salvate su R2 automaticamente grazie a DEFAULT_FILE_STORAGE.
+    """
+    if request.method == "POST":
+        prompt = request.POST.get("prompt", "").strip()
+        num_generations = request.POST.get("num_generations", "1").strip()
+        original_dataurl = request.POST.get("original_image", "").strip()
+        mask_dataurl = request.POST.get("mask_image", "").strip()
+
+        # Validazione lato server parallela a JS
+        errors = []
         if not prompt:
             errors.append("Il prompt non può essere vuoto.")
+
         try:
-            num_generations=int(num_generations)
+            num_generations = int(num_generations)
         except ValueError:
-            num_generations=1
+            num_generations = 1
             errors.append("Numero di generazioni non valido, uso 1.")
-        if num_generations<1 or num_generations>4:
-            num_generations=1
+
+        if num_generations < 1 or num_generations > 4:
+            num_generations = 1
             errors.append("Numero di generazioni deve essere tra 1 e 4, uso 1.")
 
-        #Decodifica delle immagini
-        original_img=dataurl_to_contentfile(original_dataurl,"original")
-        mask_img=dataurl_to_contentfile(mask_dataurl,"mask")
+        # Decodifica delle immagini da dataURL -> ContentFile
+        original_img = dataurl_to_contentfile(original_dataurl, "original")
+        mask_img = dataurl_to_contentfile(mask_dataurl, "mask")
 
         if original_img is None:
             errors.append("Immagine originale non valida.")
@@ -79,42 +83,48 @@ def start_generation_view(request):
                 "last_num_generations": num_generations,
             })
 
-        job=GenerationJob.objects.create(
+        # QUI: quando salvi il model, input_image/input_mask vanno su R2
+        job = GenerationJob.objects.create(
             prompt=prompt,
             num_generations=num_generations,
-            input_image=original_img,
-            input_mask=mask_img,
+            input_image=original_img,  # ImageField -> R2
+            input_mask=mask_img,       # ImageField -> R2
             status="PENDING",
         )
 
-        #Lancio task celery
+        # Lancio task celery (il worker recupererà l'immagine da job.input_image.url)
         run_generation.delay(job.id)
-        return JsonResponse({"ok":True, "job_id": job.id})
+        return JsonResponse({"ok": True, "job_id": job.id})
 
-    return render(request,
-                  "image_editor/index.html",
-                  {
-                      "last_prompt": request.POST.get("prompt", "") if request.method == "POST" else "",
-                      "last_num_generations": request.POST.get("num_generations","1") if request.method == "POST" else "1",
-                      "errors": [] ,
-                  })
+    # GET: mostra pagina vuota / stato iniziale
+    return render(
+        request,
+        "image_editor/index.html",
+        {
+            "last_prompt": request.POST.get("prompt", "") if request.method == "POST" else "",
+            "last_num_generations": request.POST.get("num_generations", "1") if request.method == "POST" else "1",
+            "errors": [],
+        },
+    )
+
 
 def job_status_view(request, job_id: int):
-    """View per controllare lo stato di un job di generazione
-    Ritorna JSON con lo stato e le immagini generate (se pronte)
+    """
+    View per controllare lo stato di un job di generazione.
+
+    Ritorna JSON con:
+    - status: PENDING / RUNNING / COMPLETED / FAILED
+    - error: eventuale messaggio di errore
+    - generated_images: lista di URL (su R2) delle immagini generate
     """
     job = get_object_or_404(GenerationJob, id=job_id)
-    data={
+    data = {
         "job_id": job.id,
         "status": job.status,
         "error": job.error_message,
-        "images":[],
+        "generated_images": job.generated_images or [],
+        # volendo puoi anche inserire gli URL di input:
+        # "input_image": job.input_image.url if job.input_image else None,
+        # "input_mask": job.input_mask.url if job.input_mask else None,
     }
-
-    if job.status == "COMPLETED" and job.output_dir:
-        rel_dir=os.path.relpath(job.output_dir, settings.MEDIA_ROOT)
-        for fname in os.listdir(job.output_dir):
-            if fname.lower().endswith((".png",".jpg",".jpeg",".webp")):
-                url=settings.MEDIA_URL+f"{rel_dir}/{fname}"
-                data["images"].append(url)
     return JsonResponse(data)

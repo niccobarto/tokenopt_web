@@ -555,8 +555,8 @@ function checkJobStatus() {
                     // Svuoto la griglia
                     resultsGrid.innerHTML = "";
 
-                    if (data.images && data.images.length > 0) {
-                        data.images.forEach((url, index) => {
+                    if (data.generated_images && data.generated_images.length > 0) {
+                        data.generated_images.forEach((url, index) => {
                             const figure = document.createElement("figure");
                             figure.className = "result-item";
 

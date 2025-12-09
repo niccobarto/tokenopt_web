@@ -2,6 +2,7 @@ from django.db import models
 
 # Create your models here.
 from django.db import models
+from django.db.models import JSONField
 
 class GenerationJob(models.Model):
     STATUS_CHOICES = [
@@ -25,8 +26,9 @@ class GenerationJob(models.Model):
     input_image=models.ImageField(upload_to="inputs/",)
     input_mask=models.ImageField(upload_to="masks/", null=True, blank=True)
 
+    generated_images = models.JSONField(default=list, blank=True)
+
     #path salvataggio risultati
-    output_dir=models.CharField(max_length=255,null=True,blank=True)
     error_message=models.TextField(null=True,blank=True)
 
     def __str__(self):
