@@ -142,6 +142,7 @@ DEFAULT_FILE_STORAGE = "tokenopt_site.storage_backends.R2MediaStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+TTO_JOBS_ROOT = MEDIA_ROOT / "tto_jobs"
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
