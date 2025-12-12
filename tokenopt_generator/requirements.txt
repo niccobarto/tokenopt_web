@@ -1,0 +1,29 @@
+# Requirements for token-opt-generator
+# NOTE: pick the torch/torchvision variants that match your CUDA version (e.g. install from https://pytorch.org)
+# Core ML libraries
+torch
+torchvision
+
+# Scientific / image processing
+numpy
+Pillow
+
+# Utilities
+einops
+jaxtyping
+sympy>=1.8
+matplotlib
+
+# HuggingFace & transformers
+transformers
+huggingface-hub
+omegaconf
+
+# OpenCLIP (package name: open_clip_torch, module imported as `open_clip`)
+open_clip_torch
+
+# Optional / dev
+# otional: accelerate, tokenizers, etc., if you use distributed or performance features
+# accelerate
+
+
