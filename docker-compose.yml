@@ -5,18 +5,21 @@ services:
       - "6379:6379"
 
   web:
-    build: .
+
+    image: tokenopt:dev
+    build:
+      context: .
+      args:
+        APP_ENV: dev
     working_dir: /app/tokenopt_site
     command: python manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
     environment:
+      TOKENOPT_ENABLE_GPU: "0"
       DJANGO_SETTINGS_MODULE: tokenopt_site.settings
-
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-
-      # coerente col Dockerfile
       PYTHONPATH: /app/tokenopt_generator:/app/tokenopt_site
     depends_on:
       - redis
@@ -25,16 +28,14 @@ services:
       - ./tokenopt_generator:/app/tokenopt_generator
 
   worker:
-    build: .
+    image: tokenopt:dev
     working_dir: /app/tokenopt_site
-    # IMPORTANTE: qui devi mettere il nome app Celery corretto (vedi nota sotto)
     command: celery -A tokenopt_site worker -l info
     environment:
+      TOKENOPT_ENABLE_GPU: "0"
       DJANGO_SETTINGS_MODULE: tokenopt_site.settings
-
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-
       PYTHONPATH: /app/tokenopt_generator:/app/tokenopt_site
     depends_on:
       - redis

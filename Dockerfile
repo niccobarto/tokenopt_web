@@ -13,11 +13,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
  && rm -rf /var/lib/apt/lists/*
 
-# Copio requirements (può stare in root oppure dentro tokenopt_site)
-# Se tu hai requirements dentro tokenopt_site, cambia la riga COPY sotto.
-COPY tokenopt_site/requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip wheel setuptools \
- && pip install -r /app/requirements.txt
+# Seleziona quale requirements installare: dev (web+worker) oppure gpu
+ARG APP_ENV=dev
+
+# Copia requirements nella image
+COPY requirements.base.txt /app/requirements.base.txt
+COPY requirements.web.txt /app/requirements.web.txt
+COPY requirements.worker.txt /app/requirements.worker.txt
+COPY requirements.gpu.txt /app/requirements.gpu.txt
+
+RUN pip install --upgrade pip wheel setuptools &&\
+ if [ "$APP_ENV" = "gpu" ]; then \
+    pip install -r /app/requirements.gpu.txt ; \
+ else \
+        pip install -r /app/requirements.web.txt && \
+        pip install -r /app/requirements.worker.txt ; \
+ fi
+
 
 # Copio ENTRAMBE le repo dentro l'immagine
 COPY tokenopt_site /app/tokenopt_site
