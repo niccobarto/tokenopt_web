@@ -1,0 +1,4 @@
+-r requirements.base.txt
+
+celery==5.6.0
+redis==6.4.0
