@@ -1,9 +1,9 @@
-from rembg import remove
 from PIL import Image
 import io
 
 
 def remove_background(input_bytes:bytes)->bytes:
+    from rembg import remove
     """Ritorna PNG con trasparenza (alpha)"""
 
     input_image=Image.open(io.BytesIO(input_bytes)).convert("RGBA")
