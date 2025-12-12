@@ -3,9 +3,15 @@ import base64
 from django.core.files.base import ContentFile
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
-
+from django.conf import settings
 from .models import GenerationJob
+from .services.generator import run_tto_job
 from .tasks import run_generation
+
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+
+
 
 
 def dataurl_to_contentfile(dataurl: str, filename: str) -> ContentFile | None:
@@ -92,11 +98,8 @@ def start_generation_view(request):
             status="PENDING",
         )
 
-        # Lancio task celery (il worker recupererà l'immagine da job.input_image.url)
-        #run_generation.delay(job.id)
-
-        from services.generator import run_tto_job
-        run_tto_job(job)  # Esecuzione sincrona per test
+         # Avvia Celery — asincrono
+        run_generation.delay(job.id)
 
         return JsonResponse({"ok": True, "job_id": job.id})
 
