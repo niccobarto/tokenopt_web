@@ -4,17 +4,18 @@ from django.db import models
 from django.db import models
 from django.db.models import JSONField
 
-class GenerationJob(models.Model):
-    STATUS_CHOICES = [
+STATUS_CHOICES = [
         ("PENDING","Pending"),
         ("RUNNING","Running"),
         ("COMPLETED","Completed"),
         ("FAILED","Failed"),
     ]
 
+class GenerationJob(models.Model):
+
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
     status=models.CharField(max_length=20,
                             choices=STATUS_CHOICES,
                             default="PENDING",
@@ -33,3 +34,12 @@ class GenerationJob(models.Model):
 
     def __str__(self):
         return f"Job {self.id} - {self.status}"
+
+class SuperResolutionJob(models.Model):
+    created_at=models.DateTimeField(auto_now_add=True)
+    status=models.CharField(max_length=20,default="PENDING",choices=STATUS_CHOICES)
+    input_image=models.ImageField(upload_to="inputs/",)
+    no_bg_image=models.ImageField(upload_to="no_bg/", null=True, blank=True)
+    superres_image=models.ImageField(upload_to="superres/", null=True, blank=True)
+
+    error_message=models.TextField(null=True,blank=True)
