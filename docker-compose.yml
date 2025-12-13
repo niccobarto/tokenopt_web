@@ -5,7 +5,8 @@ services:
       - "6379:6379"
 
   web:
-
+    env_file:
+      - .env
     image: tokenopt:dev
     build:
       context: .
@@ -28,6 +29,8 @@ services:
       - ./tokenopt_generator:/app/tokenopt_generator
 
   worker:
+    env_file:
+      - .env
     image: tokenopt:dev
     working_dir: /app/tokenopt_site
     command: celery -A tokenopt_site worker -l info
