@@ -9,6 +9,7 @@ const bgCanvasElement = document.getElementById("bgCanvas");
 const fileInput = document.getElementById("upload");
 const undoButton = document.getElementById("undo");
 const redoButton = document.getElementById("redo");
+const removeBgButton = document.getElementById("removeBackground");
 const clearButton = document.getElementById("clear");
 const downloadButton = document.getElementById("downloadBtn");
 const resultsSection = document.getElementById("resultsSection");
@@ -180,7 +181,6 @@ function getPos(e) {
 // disegno dell'immagine di sfondo su bgCanvas con "cover + crop centrale"
 function drawImageCover(ctx, img, cw, ch) {
     if (!img) return;
-    ctx.clearRect(0, 0, cw, ch);
 
     if (typeof ctx.imageSmoothingEnabled !== "undefined") {
         ctx.imageSmoothingEnabled = true;
@@ -368,6 +368,150 @@ if (downloadButton) {
 // Fine single-mask editor
 // ======================================================
 
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + "=")) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// ==================================================
+// REMOVE BACKGROUND -> crea RemoveBgJob + polling
+// ==================================================
+let REMOVE_BG_JOB_ID = null;
+let removeBgPollingInterval = null;
+const REMOVE_BG_STATUS_BASE_URL = "/editor/remove-background-status/";
+
+if (removeBgButton) {
+    removeBgButton.addEventListener("click", async () => {
+        if (!hasBackgroundImage) {
+            alert("Carica prima un'immagine di sfondo.");
+            return;
+        }
+
+        // 1) background canvas -> Blob PNG
+        const blob = await new Promise(resolve =>
+            bgCanvasElement.toBlob(resolve, "image/png")
+        );
+
+        // 2) preparo FormData
+        const formData = new FormData();
+        formData.append("image", blob, "original.png");
+
+        try {
+            const response = await fetch("/editor/remove-background/", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken"),
+                },
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            // 3) controllo risposta
+            if (!data.ok) {
+                console.error("Errore server:", data.error);
+                updateStatus("FAILED", data.error);
+                return;
+            }
+
+            // 4) avvio polling
+            updateStatus(data.status, data.error);
+            startRemoveBgPolling(data.job_id);
+
+        } catch (err) {
+            console.error("Errore di rete:", err);
+            updateStatus("FAILED", "Errore di rete durante remove background");
+        }
+    });
+}
+
+function drawImageOnWhiteBackground(ctx, img, cw, ch) {
+    // 1) pulisco
+    ctx.clearRect(0, 0, cw, ch);
+
+    // 2) sfondo bianco
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.restore();
+
+    // 3) immagine sopra (usa la tua funzione cover/crop)
+    drawImageCover(ctx, img, cw, ch);
+}
+
+function startRemoveBgPolling(jobId) {
+    REMOVE_BG_JOB_ID = jobId;
+
+    if (removeBgPollingInterval) {
+        clearInterval(removeBgPollingInterval);
+    }
+
+    // polling ogni 2 secondi
+    removeBgPollingInterval = setInterval(checkRemoveBgStatus, 2000);
+}
+
+
+function checkRemoveBgStatus() {
+    if (!REMOVE_BG_JOB_ID) return;
+
+    fetch(`${REMOVE_BG_STATUS_BASE_URL}${REMOVE_BG_JOB_ID}/`)
+        .then(r => r.json())
+        .then(data => {
+            updateStatus(data.status, data.error);
+
+            if (data.status === "FAILED") {
+                clearInterval(removeBgPollingInterval);
+                return;
+            }
+
+            if (data.status === "COMPLETED") {
+                clearInterval(removeBgPollingInterval);
+
+                // Same-origin endpoint (niente CORS)
+                const resultUrl = `/editor/remove-background-result/${REMOVE_BG_JOB_ID}/?t=${Date.now()}`;
+
+                const img = new Image();
+
+                img.onload = () => {
+                    drawImageOnWhiteBackground(
+                        bgCtx,
+                        img,
+                        bgCanvasElement.width,
+                        bgCanvasElement.height
+                    );
+
+                    hasBackgroundImage = true;
+
+                    // reset maschera e history
+                    context.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                    undoStack.length = 0;
+                    redoStack.length = 0;
+                };
+
+                img.onerror = (e) => {
+                    console.error("Errore caricamento risultato remove-bg (same-origin):", resultUrl, e);
+                };
+
+                img.src = resultUrl;
+            }
+        })
+        .catch(err => {
+            console.error("Errore polling remove-bg:", err);
+        });
+}
+
 // ==================================================
 // GESTIONE STATUS GENERAZIONE
 // ==================================================
@@ -385,16 +529,13 @@ function updateStatus(status, errorMessage = null) {
     if (status === "RUNNING") {
         statusDiv.classList.add("running");
         statusText.textContent = "Generazione in corso...";
-    }
-    else if (status === "COMPLETED") {
+    } else if (status === "COMPLETED") {
         statusDiv.classList.add("completed");
         statusText.textContent = "Generazione completata!";
-    }
-    else if (status === "FAILED") {
+    } else if (status === "FAILED") {
         statusDiv.classList.add("failed");
         statusText.textContent = `Errore nella generazione: ${errorMessage ?? ""}`;
-    }
-    else if (status === "PENDING") {
+    } else if (status === "PENDING") {
         statusText.textContent = "Job inviato, in attesa che Celery inizi...";
     }
 }
@@ -533,7 +674,7 @@ function checkJobStatus() {
         //data contiene le informazioni sul job
         .then(data => {
 
-            updateStatus(data.status,data.error)
+            updateStatus(data.status, data.error)
 
             //se la generazione è FALLITA
             if (data.status === "FAILED") {

@@ -415,6 +415,10 @@ h4{
     gap: 40px;
 }
 
+#controls .space-between {
+    justify-content: space-between;
+}
+
 #controls .row.buttons {
     justify-content: flex-start;
 }
@@ -423,6 +427,9 @@ h4{
     color: #38bdf8;
     padding:5px;
 
+}
+#controls .low-margin{
+    margin-right:5px;
 }
 #controls button {
     background: linear-gradient(180deg, #3b82f6, #1d4ed8);
@@ -434,13 +441,17 @@ h4{
     cursor: pointer;
     font-weight: 600;
     font-size: 13px;
-    margin-right: 5px;
     transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
 #controls button#clear {
     background: linear-gradient(180deg, #ef4444, #b91c1c);
     box-shadow: 0 2px 8px rgba(239, 68, 68, 0.55);
+}
+
+#controls button#removeBackground{
+    background: linear-gradient(180deg, #10b981, #047857);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.45);
 }
 
 #controls button:hover {

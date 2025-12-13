@@ -68,17 +68,17 @@
                     method="POST"
                     enctype="multipart/form-data"
                     class="hero-container"
-                    action="{%url 'start_generation' %}"
+                    action="{% url 'start_generation' %}"
             >
-                {%csrf_token %}
+                {% csrf_token %}
 
                 <!-- COLONNA SINISTRA: CONTROLLI + GENERA -->
                 <div class="controls-column">
                     <div id="controls">
                         <h4>Comandi per la maschera</h4>
                         <div class="row buttons">
-                            <button type="button" id="undo">Undo</button>
-                            <button type="button" id="redo">Redo</button>
+                            <button class="low-margin" type="button" id="undo">Undo</button>
+                            <button class="low-margin" type="button" id="redo">Redo</button>
                         </div>
 
                         <div class="row">
@@ -102,8 +102,10 @@
                             />
                         </div>
 
-                        <div class="row distance">
+                        <div class="row distance space-between">
                             <button type="button" id="clear">Pulisci</button>
+                            <button class="special-button" type="button" id="removeBackground">Remove background</button>
+
                         </div>
 
                         <div class="row custom-fie-upload">
@@ -115,16 +117,16 @@
                         <h4>Comandi per la generazione</h4>
                         <div class="row text-prompt-row">
                             <label for="textPrompt">Descrivi la modifica:</label>
-                            {%if last_prompt%}
-                            <textarea
-                                    id="textPrompt"
-                            >{{last_prompt}}</textarea>
-                            {%else%}
-                            <textarea
-                                    id="textPrompt"
-                                    placeholder="Inserisci il prompt per la modifica..."
-                            ></textarea>
-                            {%endif%}
+                            {% if last_prompt %}
+                                <textarea
+                                        id="textPrompt"
+                                >{{ last_prompt }}</textarea>
+                            {% else %}
+                                <textarea
+                                        id="textPrompt"
+                                        placeholder="Inserisci il prompt per la modifica..."
+                                ></textarea>
+                            {% endif %}
                         </div>
                         <div class="row generations-row">
                             <label for="numGenerations">Numero di varianti:</label>
@@ -172,13 +174,13 @@
                 <div id="formErrors" class="form-errors" aria-live="polite"></div>
                 <!-- QUI MOSTRO ERRORI SERVER -->
                 {% if errors %}
-                <div class="server-errors">
-                    <ul>
-                        {% for e in errors %}
-                        <li>{{ e }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
+                    <div class="server-errors">
+                        <ul>
+                            {% for e in errors %}
+                                <li>{{ e }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                 {% endif %}
                 <!-- CAMPI HIDDEN CHE VERRANNO RIEMPITI IN JS -->
                 <input type="hidden" name="prompt" id="hiddenPrompt">

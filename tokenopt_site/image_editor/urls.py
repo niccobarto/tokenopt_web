@@ -4,4 +4,9 @@ from . import views
 urlpatterns = [
     path('', views.start_generation_view, name='start_generation'),
     path("job-status/<int:job_id>/", views.job_status_view, name="job_status"),
+    path("remove-background/", views.remove_background, name="remove_background"),
+    path("remove-background-status/<int:job_id>/", views.remove_background_status_view,
+         name="remove_background_status"),
+    path("remove-background-result/<int:job_id>/",views.remove_background_result_view,name="remove_background_result",
+    ),
 ]
