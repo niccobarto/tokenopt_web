@@ -92,7 +92,7 @@ def remove_background_task(job_id: int):
             image_bytes = f.read()
 
         # 3) eseguo la rimozione dello sfondo (ritorna bytes PNG)
-        out_bytes = remove_background(image_bytes)
+        out_bytes = remove_background(image_bytes,job.model_selected)
 
         # 4) salvo su storage SENZA uuid:
         #    uso job.id per avere un nome deterministico

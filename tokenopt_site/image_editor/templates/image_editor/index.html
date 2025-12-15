@@ -104,7 +104,19 @@
 
                         <div class="row distance space-between">
                             <button type="button" id="clear">Pulisci</button>
-                            <button class="special-button" type="button" id="removeBackground">Remove background</button>
+                            <div>
+                                <label class="label" for="rembgModel">Modello remove background</label>
+
+                                <button class="special-button" type="button" id="removeBackground">Remove background
+                                </button>
+                                <select id="rembgModel" name="rembg_model" class="select">
+                                    <option value="u2net" selected>U2NET</option>
+                                    <option value="sam">SAM</option>
+                                    <option value="isnet-general-use">ISNET</option>
+                                    <option value="birefnet-general">BIREFNET</option>
+                                </select>
+                            </div>
+
 
                         </div>
 

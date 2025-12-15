@@ -9,6 +9,7 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 
+from tokenopt_site.settings import ALLOWED_HOSTS
 from .models import GenerationJob,RemoveBgJob
 from .services.generator import run_tto_job
 from .tasks import run_generation,remove_background_task
@@ -165,6 +166,8 @@ def remove_background_result_view(request, job_id: int): #Utilizzata per servire
     response["Pragma"] = "no-cache"
 
     return response
+
+ALLOWED_MODELS=["u2net","sam","isnet-general-use","birefnet-general"]
 @require_POST
 @csrf_protect
 def remove_background(request):
@@ -173,6 +176,13 @@ def remove_background(request):
     Ritorna subito job_id per polling (NON blocca).
     """
     uploaded_image = request.FILES.get("image")
+    model_selected=request.POST.get("model")
+    # L’immagine viene inviata come file (multipart/form-data) perché è un dato binario:
+    # Django separa automaticamente i campi testuali (request.POST) dai file (request.FILES).
+    # Questo evita l’uso di Base64/JSON, riduce overhead di memoria e consente un parsing
+    # corretto ed efficiente dei contenuti binari secondo lo standard HTTP.
+    if model_selected not in ALLOWED_MODELS:
+        return JsonResponse({"ok": False, "error": "Modello non valido"}, status=400)
 
     if uploaded_image is None:
         return JsonResponse({"ok": False, "error": "File 'image' mancante"}, status=400)
@@ -181,6 +191,7 @@ def remove_background(request):
     job = RemoveBgJob.objects.create(
         input_image=uploaded_image,
         status="PENDING",
+        model_selected=model_selected,
     )
 
     # Avvio task asincrono

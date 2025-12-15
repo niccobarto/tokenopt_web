@@ -56,10 +56,11 @@ class RemoveBgJob(models.Model):
         ("COMPLETED", "COMPLETED"),
         ("FAILED", "FAILED"),
     ]
+    ALLOWED_MODELS=[("u2net","U2NET"),("sam","SAM"),("isnet-general-use","ISNET"),("birefnet-general","BIREFNET")]
 
     # Stato del job (come GenerationJob)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
-
+    model_selected = models.CharField(max_length=20, choices=ALLOWED_MODELS, default="u2net")
     # Messaggio di errore eventuale
     error_message = models.TextField(blank=True, null=True)
 

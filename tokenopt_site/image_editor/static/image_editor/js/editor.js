@@ -387,11 +387,13 @@ function getCookie(name) {
 // ==================================================
 // REMOVE BACKGROUND -> crea RemoveBgJob + polling
 // ==================================================
+
 let REMOVE_BG_JOB_ID = null;
 let removeBgPollingInterval = null;
 const REMOVE_BG_STATUS_BASE_URL = "/editor/remove-background-status/";
 
 if (removeBgButton) {
+
     removeBgButton.addEventListener("click", async () => {
         if (!hasBackgroundImage) {
             alert("Carica prima un'immagine di sfondo.");
@@ -402,10 +404,12 @@ if (removeBgButton) {
         const blob = await new Promise(resolve =>
             bgCanvasElement.toBlob(resolve, "image/png")
         );
-
+        const modelSelect = document.getElementById("rembgModel");
+        const selectedModel = modelSelect.value
         // 2) preparo FormData
         const formData = new FormData();
         formData.append("image", blob, "original.png");
+        formData.append("model", selectedModel);
 
         try {
             const response = await fetch("/editor/remove-background/", {
