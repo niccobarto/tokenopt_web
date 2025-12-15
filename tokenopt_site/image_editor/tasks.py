@@ -4,13 +4,15 @@ from celery import shared_task
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
+from tokenopt_site import settings
 from .models import GenerationJob,SuperResolutionJob,RemoveBgJob
 from .services.generator import run_tto_job
 from .services.background import remove_background
+from .services.super_resolution import run_realesgan
 
 
 @shared_task
-def run_generation(job_id: int):
+def run_generation_task(job_id: int):
     job = GenerationJob.objects.get(id=job_id)
 
     try:
@@ -43,31 +45,6 @@ def run_generation(job_id: int):
         job.save(update_fields=["status", "error_message"])
         raise
 
-
-@shared_task
-def process_super_resolution(job_id: int):
-    job=SuperResolutionJob.objects.get(id=job_id)
-
-    try:
-        job.status="RUNNING"
-        job.save(update_fields=["status"])
-
-        #read input image
-        with open(job.input_image.path, "rb") as f:
-            data = f.read()
-
-        file_name=f"superres/job_{job.id}/superres_image.png"
-        saved_name=default_storage.save(file_name, ContentFile(data))
-        url=default_storage.url(saved_name)
-
-        job.superres_image=saved_name
-        job.status="COMPLETED"
-        job.save(update_fields=["status","superres_image"])
-    except Exception as e:
-        job.status="FAILED"
-        job.error_message=str(e)
-        job.save(update_fields=["status","error_message"])
-        raise
 
 @shared_task
 def remove_background_task(job_id: int):
@@ -116,3 +93,31 @@ def remove_background_task(job_id: int):
         job.error_message = str(e)
         job.save(update_fields=["status", "error_message"])
         return False
+
+@shared_task
+def run_super_resolution_task(job_id:int):
+    job=SuperResolutionJob.objects.get(id=job_id)
+    job.status="RUNNING"
+    job.save(update_fields=["status"])
+
+    try:
+        with job.input_image.open("rb") as f:
+            input_bytes=f.read()
+
+        # Esegui SR black-box
+        sr_cli_cmd = getattr(settings, "SR_CLI_CMD", None)
+        if not sr_cli_cmd:
+            raise RuntimeError("SR_CLI_CMD mancante in settings.py.")
+
+        output_bytes=run_realesgan(input_bytes,sr_cli_cmd)
+        job.superres_image.save(
+            f"superres/outputs/superres_{job.id}.png",
+            ContentFile(output_bytes),
+        )
+        job.status="COMPLETED"
+        job.save(update_fields=["status","superres_image"])
+    except Exception as e:
+        job.status = "FAILED"
+        job.error_message = str(e)
+        job.save()
+

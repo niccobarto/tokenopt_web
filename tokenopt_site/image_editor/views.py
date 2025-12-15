@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 from tokenopt_site.settings import ALLOWED_HOSTS
 from .models import GenerationJob,RemoveBgJob,UserUpload,SuperResolutionJob
 from .services.generator import run_tto_job
-from .tasks import run_generation,remove_background_task
+from .tasks import run_generation_task,remove_background_task,run_super_resolution_task
 
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -129,12 +129,12 @@ def start_generation_view(request):
     )
 
      # Avvia Celery — asincrono
-    run_generation.delay(job.id)
+    run_generation_task.delay(job.id)
 
     return JsonResponse({"ok": True, "job_id": job.id})
 
 
-def job_status_view(request, job_id: int):
+def generation_status_view(request, job_id: int):
     """
     View per controllare lo stato di un job di generazione.
 
@@ -155,32 +155,6 @@ def job_status_view(request, job_id: int):
     }
     return JsonResponse(data)
 
-def remove_background_result_view(request, job_id: int): #Utilizzata per servire l'immagine risultante in "same-origin"
-    """
-    Serve l'immagine risultante (background rimosso) come risorsa SAME-ORIGIN.
-
-    Motivo:
-    - se il frontend carica direttamente da R2, il browser blocca per CORS.
-    - servendo da Django (localhost:8000) il canvas può usare drawImage senza problemi.
-    """
-    job = get_object_or_404(RemoveBgJob, id=job_id)
-
-    # Se il job non è pronto, ritorno 404 JSON (utile anche per debug)
-    if job.status != "COMPLETED" or not job.output_image:
-        return JsonResponse({"ok": False, "error": "Risultato non disponibile"}, status=404)
-
-    # Leggo il file dallo storage (R2 o locale) tramite ImageField
-    with job.output_image.open("rb") as f:
-        data = f.read()
-
-    # Ritorno i bytes come immagine PNG
-    response = HttpResponse(data, content_type="image/png")
-
-    # Evita cache aggressiva durante sviluppo
-    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    response["Pragma"] = "no-cache"
-
-    return response
 
 ALLOWED_MODELS=["u2net","sam","isnet-general-use","birefnet-general"]
 @require_POST
@@ -226,6 +200,33 @@ def remove_background(request):
     # Risposta coerente con start_generation_view
     return JsonResponse({"ok": True, "job_id": job.id, "status": "PENDING"})
 
+def remove_background_result_view(request, job_id: int): #Utilizzata per servire l'immagine risultante in "same-origin"
+    """
+    Serve l'immagine risultante (background rimosso) come risorsa SAME-ORIGIN.
+
+    Motivo:
+    - se il frontend carica direttamente da R2, il browser blocca per CORS.
+    - servendo da Django (localhost:8000) il canvas può usare drawImage senza problemi.
+    """
+    job = get_object_or_404(RemoveBgJob, id=job_id)
+
+    # Se il job non è pronto, ritorno 404 JSON (utile anche per debug)
+    if job.status != "COMPLETED" or not job.output_image:
+        return JsonResponse({"ok": False, "error": "Risultato non disponibile"}, status=404)
+
+    # Leggo il file dallo storage (R2 o locale) tramite ImageField
+    with job.output_image.open("rb") as f:
+        data = f.read()
+
+    # Ritorno i bytes come immagine PNG
+    response = HttpResponse(data, content_type="image/png")
+
+    # Evita cache aggressiva durante sviluppo
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+
+    return response
+
 
 def remove_background_status_view(request, job_id: int):
     """
@@ -244,3 +245,93 @@ def remove_background_status_view(request, job_id: int):
         "error": job.error_message,
         "image_url": image_url,
     })
+
+import time
+import requests
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect
+from django.core.files.base import ContentFile
+
+from .models import UserUpload, SuperResolutionJob
+from .tasks import run_super_resolution_task
+
+
+@require_POST
+@csrf_protect
+def start_superres(request):
+    """
+    Crea un SuperResolutionJob a partire da:
+      - image_url: URL pubblico dell'immagine generata
+      - upload_id: (opzionale) FK a UserUpload per mantenere il workflow collegato
+
+    Ritorna:
+      - ok, job_id
+    """
+    image_url = (request.POST.get("image_url") or "").strip()
+    upload_id = (request.POST.get("upload_id") or "").strip()
+
+    if not image_url:
+        return JsonResponse({"ok": False, "error": "image_url mancante."}, status=400)
+
+    # Recupero upload se presente
+    upload = None
+    if upload_id:
+        try:
+            upload = UserUpload.objects.get(id=int(upload_id))
+        except (ValueError, UserUpload.DoesNotExist):
+            upload = None
+
+    # Creo job PENDING (senza input_image, lo setto subito dopo)
+    job = SuperResolutionJob.objects.create(
+        upload=upload,
+        status="PENDING",
+    )
+
+    try:
+        # Scarico l'immagine (URL) e la salvo nell'ImageField input_image
+        r = requests.get(image_url, timeout=30)
+        r.raise_for_status()
+
+        ts = int(time.time())
+        filename = f"sr_input_job_{job.id}_{ts}.png"  # niente uuid
+
+        job.input_image.save(filename, ContentFile(r.content), save=True)
+
+    except Exception as e:
+        job.status = "FAILED"
+        job.error_message = f"Errore download/salvataggio input_image: {e}"
+        job.save(update_fields=["status", "error_message"])
+        return JsonResponse({"ok": False, "error": job.error_message}, status=500)
+
+    # Avvio task asincrono
+    run_super_resolution_task.delay(job.id)
+
+    return JsonResponse({"ok": True, "job_id": job.id})
+
+
+def superres_status(request, job_id: int):
+    """
+    Endpoint di polling:
+    GET /editor/superres_status/<job_id>/
+
+    Ritorna sempre:
+      - status
+    Opzionale:
+      - output_url (se COMPLETED)
+      - error (se FAILED)
+    """
+    job = get_object_or_404(SuperResolutionJob, id=job_id)
+
+    data = {
+        "status": job.status
+    }
+
+    if job.status == "FAILED":
+        data["error"] = job.error_message or "Errore sconosciuto."
+
+    if job.status == "COMPLETED" and job.superres_image:
+        data["output_url"] = job.superres_image.url
+
+    return JsonResponse(data)

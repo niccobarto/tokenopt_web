@@ -675,7 +675,7 @@ if (startButtons.length && generationForm) {
                         const jobId = data.job_id;
                         console.log("JOB ID ricevuto:", jobId);
                         updateStatus(data.status, data.error);
-                        startJobPolling(jobId);
+                        startGenerationPooling(jobId);
                     })
                     .catch(err => {
                         console.error("Errore nella richiesta di generazione:", err);
@@ -690,20 +690,20 @@ if (startButtons.length && generationForm) {
 let CURRENT_JOB_ID = null;
 let pollingInterval = null;
 
-function startJobPolling(jobId) {
+function startGenerationPooling(jobId) {
     CURRENT_JOB_ID = jobId; // memorizza l'ID del job corrente
 
     // Ogni 2 secondi controlliamo lo stato
     if (pollingInterval) {
         clearInterval(pollingInterval);
     }
-    // Avvia il polling periodico di 2 secondi, dove chiameremo checkJobStatus
-    pollingInterval = setInterval(checkJobStatus, 2000);
+    // Avvia il polling periodico di 2 secondi, dove chiameremo checkGenerationStatus
+    pollingInterval = setInterval(checkGenerationStatus, 2000);
 }
 
 const JOB_STATUS_BASE_URL = "/editor/job-status/";  // <-- prefisso fisso
 
-function checkJobStatus() {
+function checkGenerationStatus() {
     if (!CURRENT_JOB_ID) return;
     //fetch chiama la view di django che ritorna lo stato del job
     fetch(`${JOB_STATUS_BASE_URL}${CURRENT_JOB_ID}/`)
@@ -735,24 +735,65 @@ function checkJobStatus() {
 
                     if (data.generated_images && data.generated_images.length > 0) {
                         data.generated_images.forEach((url, index) => {
+
+                            // <figure class="result-item">
                             const figure = document.createElement("figure");
                             figure.className = "result-item";
 
+                            // <div class="result-image-wrapper">
                             const wrapper = document.createElement("div");
                             wrapper.className = "result-image-wrapper";
 
+                            // <img src="...">
                             const img = document.createElement("img");
                             img.src = url;
                             img.alt = `Variante ${index + 1}`;
                             img.loading = "lazy";
+                            img.id = `result-img-${index}`;  // utile per aggiornare l’immagine dopo SR
 
+                            // <figcaption>
                             const caption = document.createElement("figcaption");
                             caption.className = "result-caption";
                             caption.textContent = `Variante ${index + 1}`;
 
+                            // === PULSANTE SUPER-RESOLUTION ===
+                            const srButton = document.createElement("button");
+                            srButton.type = "button";
+                            srButton.className = "sr-btn";
+                            srButton.textContent = "Super-Resolution";
+
+                            // Salviamo l’URL dell’immagine nel bottone
+                            srButton.dataset.imageUrl = url;
+                            srButton.dataset.imgIndex = index;
+
+                            // === DIV DI STATO SR ===
+                            const srStatus = document.createElement("div");
+                            srStatus.className = "sr-status";
+                            srStatus.id = `sr-status-${index}`;
+
+                            // Click sul pulsante SR
+                            srButton.addEventListener("click", async () => {
+                                srButton.disabled = true;
+                                srStatus.textContent = "Super-resolution in avvio...";
+
+                                try {
+                                    const srJobId = await startSuperResolution(url);
+                                    startSuperResolutionPolling(srJobId, srStatus, img);
+                                } catch (err) {
+                                    console.error(err);
+                                    srStatus.textContent = `Errore durante la super-resolution: ${err.message ?? ""}`;
+                                } finally {
+                                    srButton.disabled = false;
+                                }
+                            });
+
+                            // Costruzione DOM
                             wrapper.appendChild(img);
                             figure.appendChild(wrapper);
                             figure.appendChild(caption);
+                            figure.appendChild(srButton);
+                            figure.appendChild(srStatus);
+
                             resultsGrid.appendChild(figure);
                         });
 
@@ -760,6 +801,7 @@ function checkJobStatus() {
                         if (downloadButton) {
                             downloadButton.disabled = false;
                         }
+
                     } else {
                         // Nessuna immagine trovata
                         const msg = document.createElement("p");
@@ -777,4 +819,91 @@ function checkJobStatus() {
         .catch(err => {
             console.error("Errore durante il polling:", err);
         });
+}
+
+// ==================================================
+// SUPER RESOLUTION -> crea SuperResolutionJob + polling
+// ==================================================
+
+// Endpoint backend in stile tuo:
+// - start: crea job e ritorna job_id
+// - status: /editor/superres-status/<job_id>/
+const SUPERRES_START_URL = "/editor/superres-start/";
+const SUPERRES_STATUS_BASE_URL = "/editor/superres-status/";
+
+// Ogni job SR ha un interval (perché puoi lanciare SR su più immagini)
+const SUPERRES_POLLING_INTERVALS = new Map();
+
+async function startSuperResolution(imageUrl) {
+    const formData = new FormData();
+    formData.append("image_url", imageUrl);
+
+    if (CURRENT_UPLOAD_ID) {
+        formData.append("upload_id", CURRENT_UPLOAD_ID);
+    }
+
+    // POST allo START (non allo status!)
+    const resp = await fetch(SUPERRES_START_URL, {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCookie("csrftoken"),
+        },
+        body: formData,
+    });
+
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok || !data.ok || !data.job_id) {
+        throw new Error(data.error || "Errore avvio super-risoluzione.");
+    }
+
+    return data.job_id;
+}
+
+function startSuperResolutionPolling(jobId, statusDiv, imgElement) {
+    if (SUPERRES_POLLING_INTERVALS.has(jobId)) {
+        clearInterval(SUPERRES_POLLING_INTERVALS.get(jobId));
+        SUPERRES_POLLING_INTERVALS.delete(jobId);
+    }
+
+    const intervalId = setInterval(() => {
+        // GET allo STATUS
+        fetch(`${SUPERRES_STATUS_BASE_URL}${jobId}/`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === "PENDING") {
+                    statusDiv.textContent = "Super-resolution: in attesa...";
+                    return;
+                }
+                if (data.status === "RUNNING") {
+                    statusDiv.textContent = "Super-resolution: in corso...";
+                    return;
+                }
+                if (data.status === "FAILED") {
+                    statusDiv.textContent = `Super-resolution fallita: ${data.error ?? ""}`;
+                    clearInterval(intervalId);
+                    SUPERRES_POLLING_INTERVALS.delete(jobId);
+                    return;
+                }
+                if (data.status === "COMPLETED") {
+                    statusDiv.textContent = "Super-resolution completata.";
+
+                    if (data.output_url && imgElement) {
+                        imgElement.src = `${data.output_url}?t=${Date.now()}`;
+                    }
+
+                    clearInterval(intervalId);
+                    SUPERRES_POLLING_INTERVALS.delete(jobId);
+                    return;
+                }
+
+                statusDiv.textContent = `Super-resolution: stato sconosciuto (${data.status})`;
+            })
+            .catch(err => {
+                console.error("Errore polling super-resolution:", err);
+                statusDiv.textContent = "Super-resolution: errore polling (retry)...";
+            });
+    }, 2000);
+
+    SUPERRES_POLLING_INTERVALS.set(jobId, intervalId);
 }
