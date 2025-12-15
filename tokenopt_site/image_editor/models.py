@@ -11,8 +11,21 @@ STATUS_CHOICES = [
         ("FAILED","Failed"),
     ]
 
-class GenerationJob(models.Model):
+class UserUpload(models.Model):
+    """
+    Rappresenta l’immagine originale caricata dall’utente (con eventuale sfondo)
+    e fa da "contenitore" per tutti i job derivati (removebg, superres, generation).
+    """
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    # L’immagine originale (con sfondo) a cui vuoi sempre poter tornare
+    original_image = models.ImageField(upload_to="uploads/originals/")
+
+    def __str__(self):
+        return f"UserUpload {self.id}"
+
+
+class GenerationJob(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -24,13 +37,15 @@ class GenerationJob(models.Model):
     num_generations=models.IntegerField(default=1)
 
     #file in input
-    input_image=models.ImageField(upload_to="inputs/",)
-    input_mask=models.ImageField(upload_to="masks/", null=True, blank=True)
+    input_image=models.ImageField(upload_to="generation/inputs/",)
+    input_mask=models.ImageField(upload_to="generation/masks/", null=True, blank=True)
 
     generated_images = models.JSONField(default=list, blank=True)
 
     #path salvataggio risultati
     error_message=models.TextField(null=True,blank=True)
+
+    upload=models.ForeignKey(UserUpload,on_delete=models.CASCADE,related_name="generation_jobs",null=True,blank=True)
 
     def __str__(self):
         return f"Job {self.id} - {self.status}"
@@ -38,11 +53,18 @@ class GenerationJob(models.Model):
 class SuperResolutionJob(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     status=models.CharField(max_length=20,default="PENDING",choices=STATUS_CHOICES)
-    input_image=models.ImageField(upload_to="inputs/",)
-    no_bg_image=models.ImageField(upload_to="no_bg/", null=True, blank=True)
-    superres_image=models.ImageField(upload_to="superres/", null=True, blank=True)
+    input_image=models.ImageField(upload_to="superres/inputs/",)
+    superres_image=models.ImageField(upload_to="superres/outputs", null=True, blank=True)
 
     error_message=models.TextField(null=True,blank=True)
+
+    upload = models.ForeignKey(
+        UserUpload,
+        on_delete=models.CASCADE,
+        related_name="superres_jobs",
+        null=True,
+        blank=True
+    )
 
 class RemoveBgJob(models.Model):
     """
@@ -50,12 +72,6 @@ class RemoveBgJob(models.Model):
     Usato per tracciare stato, input e output (singolo).
     """
 
-    STATUS_CHOICES = [
-        ("PENDING", "PENDING"),
-        ("RUNNING", "RUNNING"),
-        ("COMPLETED", "COMPLETED"),
-        ("FAILED", "FAILED"),
-    ]
     ALLOWED_MODELS=[("u2net","U2NET"),("sam","SAM"),("isnet-general-use","ISNET"),("birefnet-general","BIREFNET")]
 
     # Stato del job (come GenerationJob)
@@ -72,5 +88,12 @@ class RemoveBgJob(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    upload = models.ForeignKey(
+        UserUpload,
+        on_delete=models.CASCADE,
+        related_name="removebg_jobs",
+        null=True,
+        blank=True
+    )
     def __str__(self):
         return f"RemoveBgJob(id={self.id}, status={self.status})"

@@ -25,7 +25,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('editor/', include('image_editor.urls')),
-    path('', views.start_generation_view, name='home'),
+    path('', views.home_view, name='home'),
 ]
 
 if settings.DEBUG:

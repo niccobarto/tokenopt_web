@@ -1,6 +1,7 @@
 // ======================================================
 // SINGLE MASK EDITOR - versione semplificata (una sola maschera)
 // ======================================================
+let CURRENT_UPLOAD_ID = null;
 
 // ---------- DOM ELEMENTS ----------
 const canvasElement = document.getElementById("canvas");
@@ -231,16 +232,38 @@ function fileToDataUri(field) {
     });
 }
 
+// crea un upload sul server a partire da un dataURL
+async function createUploadOnServerFromDataURL(dataURL) {
+    // Converte dataURL -> Blob
+    const blob = await (await fetch(dataURL)).blob();
+
+    const formData = new FormData();
+    formData.append("image", blob, "original.png");
+
+    const resp = await fetch("/editor/create-upload/", {
+        method: "POST",
+        headers: {"X-CSRFToken": getCookie("csrftoken")},
+        body: formData
+    });
+
+    const data = await resp.json();
+    if (!data.ok) {
+        throw new Error(data.error || "Errore creazione upload");
+    }
+    return data.upload_id;
+}
+
 // ---------- UPLOAD IMMAGINE ----------
 if (fileInput) {
     fileInput.addEventListener("change", async () => {
         const [file] = fileInput.files;
         if (!file) return;
+        CURRENT_UPLOAD_ID = null;
 
         const img = document.createElement("img");
         img.src = await fileToDataUri(file);
 
-        img.addEventListener("load", () => {
+        img.addEventListener("load", async () => {
             // disegna l'immagine di sfondo sul bgCanvas
             drawImageCover(bgCtx, img, bgCanvasElement.width, bgCanvasElement.height);
             hasBackgroundImage = true;
@@ -248,6 +271,16 @@ if (fileInput) {
             context.clearRect(0, 0, canvasElement.width, canvasElement.height);
             undoStack.length = 0;
             redoStack.length = 0;
+
+            // crea upload sul server
+            // CREA UPLOAD A SERVER: qui ottieni l'ancora del workflow
+            try {
+                CURRENT_UPLOAD_ID = await createUploadOnServerFromDataURL(bgCanvasElement.toDataURL("image/png"));
+                console.log("UPLOAD ID:", CURRENT_UPLOAD_ID);
+            } catch (e) {
+                console.error("Errore creazione upload:", e);
+                // Qui puoi mostrare un errore all'utente se vuoi
+            }
         });
     });
 }
@@ -410,7 +443,7 @@ if (removeBgButton) {
         const formData = new FormData();
         formData.append("image", blob, "original.png");
         formData.append("model", selectedModel);
-
+        formData.append("upload_id", CURRENT_UPLOAD_ID);
         try {
             const response = await fetch("/editor/remove-background/", {
                 method: "POST",
@@ -603,7 +636,7 @@ if (startButtons.length && generationForm) {
                 // Invece inviamo via fetch e restiamo sulla stessa pagina
 
                 const formData = new FormData(generationForm);
-
+                formData.append("upload_id", CURRENT_UPLOAD_ID);
                 // opzionale: disabilito il bottone / mostro "caricamento"
 
                 console.log("Form action:", generationForm.action);

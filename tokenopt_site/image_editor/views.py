@@ -10,14 +10,21 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 
 from tokenopt_site.settings import ALLOWED_HOSTS
-from .models import GenerationJob,RemoveBgJob
+from .models import GenerationJob,RemoveBgJob,UserUpload,SuperResolutionJob
 from .services.generator import run_tto_job
 from .tasks import run_generation,remove_background_task
 
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-
+@require_POST
+@csrf_protect
+def create_upload(request):
+    uploaded_image=request.FILES.get("image")
+    if uploaded_image is None:
+        return JsonResponse({"ok": False, "error": "File 'image' mancante"}, status=400)
+    upload=UserUpload.objects.create(original_image=uploaded_image)
+    return JsonResponse({"ok": True, "upload_id": upload.id})
 
 
 def dataurl_to_contentfile(dataurl: str, filename: str) -> ContentFile | None:
@@ -48,77 +55,85 @@ def dataurl_to_contentfile(dataurl: str, filename: str) -> ContentFile | None:
 
     return ContentFile(img_bytes, name=f"{filename}.{ext}")
 
-
-def start_generation_view(request):
-    """
-    - GET: mostra la pagina dell'editor di maschera
-    - POST: riceve gli input (prompt, immagine, maschera),
-            crea un GenerationJob e lancia il task Celery.
-
-    Le immagini vengono salvate su R2 automaticamente grazie a DEFAULT_FILE_STORAGE.
-    """
-    if request.method == "POST":
-        prompt = request.POST.get("prompt", "").strip()
-        num_generations = request.POST.get("num_generations", "1").strip()
-        original_dataurl = request.POST.get("original_image", "").strip()
-        mask_dataurl = request.POST.get("mask_image", "").strip()
-
-        # Validazione lato server parallela a JS
-        errors = []
-        if not prompt:
-            errors.append("Il prompt non può essere vuoto.")
-
-        try:
-            num_generations = int(num_generations)
-        except ValueError:
-            num_generations = 1
-            errors.append("Numero di generazioni non valido, uso 1.")
-
-        if num_generations < 1 or num_generations > 4:
-            num_generations = 1
-            errors.append("Numero di generazioni deve essere tra 1 e 4, uso 1.")
-
-        # Decodifica delle immagini da dataURL -> ContentFile
-        original_img = dataurl_to_contentfile(original_dataurl, "original")
-        mask_img = dataurl_to_contentfile(mask_dataurl, "mask")
-
-        if original_img is None:
-            errors.append("Immagine originale non valida.")
-        if mask_img is None:
-            errors.append("Immagine maschera non valida.")
-
-        if errors:
-            return render(request, "image_editor/index.html", {
-                "generated_images": None,
-                "errors": errors,
-                "last_prompt": prompt,
-                "last_num_generations": num_generations,
-            })
-
-        # QUI: quando salvi il model, input_image/input_mask vanno su R2
-        job = GenerationJob.objects.create(
-            prompt=prompt,
-            num_generations=num_generations,
-            input_image=original_img,  # ImageField -> R2
-            input_mask=mask_img,       # ImageField -> R2
-            status="PENDING",
-        )
-
-         # Avvia Celery — asincrono
-        run_generation.delay(job.id)
-
-        return JsonResponse({"ok": True, "job_id": job.id})
-
+def home_view(request):
     # GET: mostra pagina vuota / stato iniziale
     return render(
         request,
         "image_editor/index.html",
         {
-            "last_prompt": request.POST.get("prompt", "") if request.method == "POST" else "",
-            "last_num_generations": request.POST.get("num_generations", "1") if request.method == "POST" else "1",
+            "last_prompt": "",
+            "last_num_generations":"1",
             "errors": [],
         },
     )
+
+@require_POST
+@csrf_protect
+def start_generation_view(request):
+    """
+    - POST: riceve gli input (prompt, immagine, maschera),
+            crea un GenerationJob e lancia il task Celery.
+    Le immagini vengono salvate su R2 automaticamente grazie a DEFAULT_FILE_STORAGE.
+    """
+    prompt = request.POST.get("prompt", "").strip()
+    num_generations = request.POST.get("num_generations", "1").strip()
+    original_dataurl = request.POST.get("original_image", "").strip()
+    mask_dataurl = request.POST.get("mask_image", "").strip()
+    upload_id = request.POST.get("upload_id")
+    upload=None
+    if upload_id:
+        try:
+            upload = UserUpload.objects.get(id=int(upload_id))
+        except (ValueError, UserUpload.DoesNotExist):
+            upload = None
+    # Validazione lato server parallela a JS
+    errors = []
+    if not prompt:
+        errors.append("Il prompt non può essere vuoto.")
+
+    try:
+        num_generations = int(num_generations)
+    except ValueError:
+        num_generations = 1
+        errors.append("Numero di generazioni non valido, uso 1.")
+
+    if num_generations < 1 or num_generations > 4:
+        num_generations = 1
+        errors.append("Numero di generazioni deve essere tra 1 e 4, uso 1.")
+
+    # Decodifica delle immagini da dataURL -> ContentFile
+    original_img = dataurl_to_contentfile(original_dataurl, "original")
+    mask_img = dataurl_to_contentfile(mask_dataurl, "mask")
+
+    if original_img is None:
+        errors.append("Immagine originale non valida.")
+    if mask_img is None:
+        errors.append("Immagine maschera non valida.")
+
+    if errors:
+        return render(request, "image_editor/index.html", {
+            "generated_images": None,
+            "errors": errors,
+            "last_prompt": prompt,
+            "last_num_generations": num_generations,
+        })
+
+    # QUI: quando salvi il model, input_image/input_mask vanno su R2
+    job = GenerationJob.objects.create(
+        upload=upload,
+        prompt=prompt,
+        num_generations=num_generations,
+        input_image=original_img,  # ImageField -> R2
+        input_mask=mask_img,       # ImageField -> R2
+        status="PENDING",
+    )
+
+     # Avvia Celery — asincrono
+    run_generation.delay(job.id)
+
+    return JsonResponse({"ok": True, "job_id": job.id})
+
+
 def job_status_view(request, job_id: int):
     """
     View per controllare lo stato di un job di generazione.
@@ -177,10 +192,20 @@ def remove_background(request):
     """
     uploaded_image = request.FILES.get("image")
     model_selected=request.POST.get("model")
+
     # L’immagine viene inviata come file (multipart/form-data) perché è un dato binario:
     # Django separa automaticamente i campi testuali (request.POST) dai file (request.FILES).
     # Questo evita l’uso di Base64/JSON, riduce overhead di memoria e consente un parsing
     # corretto ed efficiente dei contenuti binari secondo lo standard HTTP.
+
+    upload_id = request.POST.get("upload_id")
+    upload = None
+    if upload_id:
+        try:
+            upload = UserUpload.objects.get(id=int(upload_id))
+        except (ValueError, UserUpload.DoesNotExist):
+            upload = None
+
     if model_selected not in ALLOWED_MODELS:
         return JsonResponse({"ok": False, "error": "Modello non valido"}, status=400)
 
@@ -189,6 +214,7 @@ def remove_background(request):
 
     # Creo job e salvo input (va su R2 se configurato)
     job = RemoveBgJob.objects.create(
+        upload=upload,
         input_image=uploaded_image,
         status="PENDING",
         model_selected=model_selected,
