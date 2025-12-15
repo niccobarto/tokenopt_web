@@ -474,7 +474,7 @@ h4{
     color: #111827;
 }
 
-#controls label[for='penTool'], #controls label[for='eraserTool'], #controls label[for="textPrompt"], #controls label[for="numGenerations"], #controls span{
+#controls label[for='penTool'], #controls label[for='eraserTool'], #controls label[for="textPrompt"], #controls label[for="numGenerations"],#controls label[for="rembgModel"], #controls span{
     color: white;
 }
 

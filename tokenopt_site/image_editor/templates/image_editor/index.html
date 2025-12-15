@@ -75,7 +75,7 @@
                 <!-- COLONNA SINISTRA: CONTROLLI + GENERA -->
                 <div class="controls-column">
                     <div id="controls">
-                        <h4>Comandi per la maschera</h4>
+                        <h4>Editing immagine</h4>
                         <div class="row buttons">
                             <button class="low-margin" type="button" id="undo">Undo</button>
                             <button class="low-margin" type="button" id="redo">Redo</button>
@@ -105,19 +105,18 @@
                         <div class="row distance space-between">
                             <button type="button" id="clear">Pulisci</button>
                             <div>
-                                <label class="label" for="rembgModel">Modello remove background</label>
-
-                                <button class="special-button" type="button" id="removeBackground">Remove background
-                                </button>
-                                <select id="rembgModel" name="rembg_model" class="select">
+                                <label class="label" for="rembgModel">Modello rimozione sfondo:</label>
+                                <div class="row space-between">
+                                    <select id="rembgModel" name="rembg_model" class="select">
                                     <option value="u2net" selected>U2NET</option>
                                     <option value="sam">SAM</option>
                                     <option value="isnet-general-use">ISNET</option>
                                     <option value="birefnet-general">BIREFNET</option>
                                 </select>
+                                <button class="special-button" type="button" id="removeBackground">Remove background
+                                </button>
+                                </div>
                             </div>
-
-
                         </div>
 
                         <div class="row custom-fie-upload">
