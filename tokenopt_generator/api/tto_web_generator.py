@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import List
 from PIL import Image,ImageDraw,ImageFont
@@ -7,8 +8,7 @@ from tokenopt_generator.inpaiting_utils.inpainting import add_conf, ObjectiveTyp
 from tokenopt_generator.token_opt.tto.test_time_opt import TestTimeOptConfig, TestTimeOpt, CLIPObjective, MultiObjective
 
 device = "cuda" if cuda.is_available() else "cpu"
-USE_DUMMY_GENERATION = True
-
+USE_DUMMY_GENERATION = os.getenv("TOKENOPT_USE_DUMMY_GENERATION", "0") == "1"
 # region Configurazioni TTO
 configs = [
     add_conf(

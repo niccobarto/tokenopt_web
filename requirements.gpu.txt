@@ -43,6 +43,10 @@ kiwisolver==1.4.9
 pyparsing==3.2.5
 python-dateutil==2.9.0.post0
 
+# API server per RunPod
+fastapi==0.115.8
+uvicorn==0.34.0
+
 # (Se ti serve numba)
 numba==0.62.1
 llvmlite==0.45.1

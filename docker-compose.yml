@@ -3,7 +3,21 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-
+  generator:
+    env_file:
+      - .env
+    image: tokenopt:gpu
+    build:
+      context: .
+      args:
+        APP_ENV: gpu
+    working_dir: /app
+    command: uvicorn tokenopt_generator.server:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    environment:
+      TOKENOPT_ENABLE_GPU: "1"
+      PYTHONPATH: /app/tokenopt_generator
   web:
     env_file:
       - .env
@@ -18,6 +32,7 @@ services:
       - "8000:8000"
     environment:
       TOKENOPT_ENABLE_GPU: "0"
+      TOKENOPT_RUNPOD_URL: http://generator:8001
       DJANGO_SETTINGS_MODULE: tokenopt_site.settings
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0

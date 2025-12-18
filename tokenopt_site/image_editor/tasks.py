@@ -5,12 +5,20 @@ from celery import shared_task
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
+import base64
+import os
+
+import requests
 from tokenopt_site import settings
 from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE,REMOVEBG_ROOT_RELATIVE,SUPERRES_ROOT_RELATIVE
 from .models import GenerationJob,SuperResolutionJob,RemoveBgJob
 from .services.generator import run_tto_job
 from tokenopt_generator.api.remove_background import remove_background
 from tokenopt_generator.api.super_resolution import run_realesgan
+
+RUNPOD_URL = os.getenv("TOKENOPT_RUNPOD_URL", "").strip()
+RUNPOD_TIMEOUT = int(os.getenv("TOKENOPT_RUNPOD_TIMEOUT", "600"))
+
 
 @shared_task
 def run_generation_task(job_id: int):
@@ -69,8 +77,10 @@ def remove_background_task(job_id: int):
             image_bytes = f.read()
 
         # 3) eseguo la rimozione dello sfondo (ritorna bytes PNG)
-        out_bytes = remove_background(image_bytes,job.model_selected)
-
+        if RUNPOD_URL:
+            out_bytes = _remove_background_runpod(image_bytes, job.model_selected)
+        else:
+            out_bytes = remove_background(image_bytes, job.model_selected)
         # 4) salvo su storage SENZA uuid:
         #    uso job.id per avere un nome deterministico
         filename=f"{REMOVEBG_ROOT_RELATIVE}/job_{job.id}/outputs/output.png"
@@ -104,12 +114,14 @@ def run_super_resolution_task(job_id:int):
         with job.input_image.open("rb") as f:
             input_bytes=f.read()
 
-        # Esegui SR black-box
-        sr_cli_cmd = getattr(settings, "SR_CLI_CMD", None)
-        if not sr_cli_cmd:
-            raise RuntimeError("SR_CLI_CMD mancante in settings.py.")
-
-        output_bytes=run_realesgan(input_bytes,sr_cli_cmd)
+        # Esegui SR su RunPod o localmente
+        if RUNPOD_URL:
+            output_bytes = _super_resolution_runpod(input_bytes)
+        else:
+            sr_cli_cmd = getattr(settings, "SR_CLI_CMD", None)
+            if not sr_cli_cmd:
+                raise RuntimeError("SR_CLI_CMD mancante in settings.py.")
+            output_bytes = run_realesgan(input_bytes, sr_cli_cmd)
         file_path=f"{SUPERRES_ROOT_RELATIVE}/job_{job.id}/outputs/output.png"
         saved_path=default_storage.save(
             file_path,
@@ -123,3 +135,34 @@ def run_super_resolution_task(job_id:int):
         job.error_message = str(e)
         job.save()
 
+def _remove_background_runpod(image_bytes: bytes, model_selected: str) -> bytes:
+    endpoint = f"{RUNPOD_URL.rstrip('/')}/remove-background"
+
+    files = {"input_image": ("input.png", image_bytes, "image/png")}
+    data = {"model": model_selected}
+
+    response = requests.post(endpoint, data=data, files=files, timeout=RUNPOD_TIMEOUT)
+    response.raise_for_status()
+
+    payload = response.json()
+    result = payload.get("result")
+    if not result or "data" not in result:
+        raise RuntimeError("Risposta RunPod remove-background priva del campo 'data'")
+
+    return base64.b64decode(result["data"])
+
+
+def _super_resolution_runpod(image_bytes: bytes) -> bytes:
+    endpoint = f"{RUNPOD_URL.rstrip('/')}/super-resolution"
+
+    files = {"input_image": ("input.png", image_bytes, "image/png")}
+
+    response = requests.post(endpoint, files=files, timeout=RUNPOD_TIMEOUT)
+    response.raise_for_status()
+
+    payload = response.json()
+    result = payload.get("result")
+    if not result or "data" not in result:
+        raise RuntimeError("Risposta RunPod super-resolution priva del campo 'data'")
+
+    return base64.b64decode(result["data"])
