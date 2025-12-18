@@ -139,6 +139,7 @@ def generate_inpainting(
 
             multi_objective = MultiObjective(objectives, config.objective_weights)
             tto = TestTimeOpt(config.tto_config, multi_objective)
+            tto.to(device)
             result_tns = tto(seed=input_tns)
             result_img = tensor_to_image(result_tns)
             out_path = output_dir / f"{name}_result.png"
