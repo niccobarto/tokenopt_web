@@ -46,3 +46,11 @@ python-dateutil==2.9.0.post0
 # (Se ti serve numba)
 numba==0.62.1
 llvmlite==0.45.1
+
+# Remove background (rembg + runtime)
+rembg==2.0.68
+onnxruntime==1.23.2
+PyMatting==1.1.14
+flatbuffers==25.9.23
+coloredlogs==15.0.1
+humanfriendly==10.0

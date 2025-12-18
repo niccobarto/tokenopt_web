@@ -9,9 +9,8 @@ from tokenopt_site import settings
 from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE,REMOVEBG_ROOT_RELATIVE,SUPERRES_ROOT_RELATIVE
 from .models import GenerationJob,SuperResolutionJob,RemoveBgJob
 from .services.generator import run_tto_job
-from .services.background import remove_background
-from .services.super_resolution import run_realesgan
-
+from tokenopt_generator.api.remove_background import remove_background
+from tokenopt_generator.api.super_resolution import run_realesgan
 
 @shared_task
 def run_generation_task(job_id: int):
