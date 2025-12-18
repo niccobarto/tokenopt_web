@@ -47,10 +47,6 @@ python-dateutil==2.9.0.post0
 fastapi==0.115.8
 uvicorn==0.34.0
 
-# (Se ti serve numba)
-numba==0.62.1
-llvmlite==0.45.1
-
 # Remove background (rembg + runtime)
 rembg==2.0.68
 onnxruntime==1.23.2
