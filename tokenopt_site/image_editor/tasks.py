@@ -1,10 +1,12 @@
 # image_editor/tasks.py
+from fileinput import filename
 
 from celery import shared_task
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
 from tokenopt_site import settings
+from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE,REMOVEBG_ROOT_RELATIVE,SUPERRES_ROOT_RELATIVE
 from .models import GenerationJob,SuperResolutionJob,RemoveBgJob
 from .services.generator import run_tto_job
 from .services.background import remove_background
@@ -28,8 +30,7 @@ def run_generation_task(job_id: int):
         for idx, path in enumerate(generated_paths, start=1):
             with open(path, "rb") as f:
                 data = f.read()
-
-            file_name = f"outputs/job_{job.id}/gen_{idx:02d}.png"
+            file_name = f"{TTO_JOBS_ROOT_RELATIVE}/job_{job.id}/outputs/gen_{idx:02d}.png"
             saved_name = default_storage.save(file_name, ContentFile(data))
             url = default_storage.url(saved_name)
             generated_urls.append(url)
@@ -73,7 +74,7 @@ def remove_background_task(job_id: int):
 
         # 4) salvo su storage SENZA uuid:
         #    uso job.id per avere un nome deterministico
-        filename = f"remove_bg/outputs/job_{job.id}.png"
+        filename=f"{REMOVEBG_ROOT_RELATIVE}/job_{job.id}/outputs/output.png"
 
         # opzionale: se vuoi garantire overwrite, cancelli prima
         # if default_storage.exists(filename):
@@ -82,7 +83,7 @@ def remove_background_task(job_id: int):
         saved_path = default_storage.save(filename, ContentFile(out_bytes))
 
         # 5) aggancio l'output al model (ImageField)
-        job.output_image.name = saved_path
+        job.output_image= saved_path
         job.status = "COMPLETED"
         job.save(update_fields=["output_image", "status"])
 
@@ -110,10 +111,12 @@ def run_super_resolution_task(job_id:int):
             raise RuntimeError("SR_CLI_CMD mancante in settings.py.")
 
         output_bytes=run_realesgan(input_bytes,sr_cli_cmd)
-        job.superres_image.save(
-            f"superres/outputs/superres_{job.id}.png",
+        file_path=f"{SUPERRES_ROOT_RELATIVE}/job_{job.id}/outputs/output.png"
+        saved_path=default_storage.save(
+            file_path,
             ContentFile(output_bytes),
         )
+        job.superres_image=saved_path
         job.status="COMPLETED"
         job.save(update_fields=["status","superres_image"])
     except Exception as e:

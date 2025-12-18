@@ -1,8 +1,9 @@
 from django.db import models
-
+import uuid
 # Create your models here.
 from django.db import models
 from django.db.models import JSONField
+from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE,REMOVEBG_ROOT_RELATIVE,SUPERRES_ROOT_RELATIVE
 
 STATUS_CHOICES = [
         ("PENDING","Pending"),
@@ -10,6 +11,13 @@ STATUS_CHOICES = [
         ("COMPLETED","Completed"),
         ("FAILED","Failed"),
     ]
+
+def generation_input_path(instance, filename):
+    return f"{TTO_JOBS_ROOT_RELATIVE}/job_{instance.id}/inputs/{filename}"
+def background_input_path(instance, filename):
+    return f"{REMOVEBG_ROOT_RELATIVE}/job_{instance.id}/inputs/{filename}"
+def superres_input_path(instance, filename):
+    return f"{SUPERRES_ROOT_RELATIVE}/job_{instance.id}/inputs/{filename}"
 
 class UserUpload(models.Model):
     """
@@ -37,8 +45,8 @@ class GenerationJob(models.Model):
     num_generations=models.IntegerField(default=1)
 
     #file in input
-    input_image=models.ImageField(upload_to="generation/inputs/",)
-    input_mask=models.ImageField(upload_to="generation/masks/", null=True, blank=True)
+    input_image=models.ImageField(upload_to=generation_input_path,null=True,blank=True)
+    input_mask=models.ImageField(upload_to=generation_input_path, null=True, blank=True)
 
     generated_images = models.JSONField(default=list, blank=True)
 
@@ -50,11 +58,13 @@ class GenerationJob(models.Model):
     def __str__(self):
         return f"Job {self.id} - {self.status}"
 
+
+
 class SuperResolutionJob(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     status=models.CharField(max_length=20,default="PENDING",choices=STATUS_CHOICES)
-    input_image=models.ImageField(upload_to="superres/inputs/",)
-    superres_image=models.ImageField(upload_to="superres/outputs", null=True, blank=True)
+    input_image=models.ImageField(upload_to=superres_input_path,)
+    superres_image=models.JSONField(default=list,blank=True)
 
     error_message=models.TextField(null=True,blank=True)
 
@@ -81,8 +91,8 @@ class RemoveBgJob(models.Model):
     error_message = models.TextField(blank=True, null=True)
 
     # Input e output (ImageField -> va su R2 se DEFAULT_FILE_STORAGE punta a R2)
-    input_image = models.ImageField(upload_to="remove_bg/inputs/")
-    output_image = models.ImageField(upload_to="remove_bg/outputs/", blank=True, null=True)
+    input_image = models.ImageField(upload_to=background_input_path)
+    output_image = models.JSONField(default=list, blank=True)
 
     # Timestamps utili (opzionali ma consigliati)
     created_at = models.DateTimeField(auto_now_add=True)

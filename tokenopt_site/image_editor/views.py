@@ -1,7 +1,7 @@
 import base64
 import uuid
 
-from PIL.Image import Image
+from PIL.Image import Image,open
 from django.core.files.base import ContentFile
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
@@ -123,11 +123,11 @@ def start_generation_view(request):
         upload=upload,
         prompt=prompt,
         num_generations=num_generations,
-        input_image=original_img,  # ImageField -> R2
-        input_mask=mask_img,       # ImageField -> R2
         status="PENDING",
     )
-
+    job.input_mask=mask_img
+    job.input_image=original_img
+    job.save()
      # Avvia Celery — asincrono
     run_generation_task.delay(job.id)
 
@@ -189,11 +189,11 @@ def remove_background(request):
     # Creo job e salvo input (va su R2 se configurato)
     job = RemoveBgJob.objects.create(
         upload=upload,
-        input_image=uploaded_image,
         status="PENDING",
         model_selected=model_selected,
     )
-
+    job.input_image=uploaded_image
+    job.save()
     # Avvio task asincrono
     remove_background_task.delay(job.id)
 
@@ -214,12 +214,11 @@ def remove_background_result_view(request, job_id: int): #Utilizzata per servire
     if job.status != "COMPLETED" or not job.output_image:
         return JsonResponse({"ok": False, "error": "Risultato non disponibile"}, status=404)
 
-    # Leggo il file dallo storage (R2 o locale) tramite ImageField
-    with job.output_image.open("rb") as f:
-        data = f.read()
+    # Leggo il file dallo storage (R2 o locale)
+    output_image=default_storage.open(job.output_image).read()
 
     # Ritorno i bytes come immagine PNG
-    response = HttpResponse(data, content_type="image/png")
+    response = HttpResponse(output_image, content_type="image/png")
 
     # Evita cache aggressiva durante sviluppo
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -237,7 +236,7 @@ def remove_background_status_view(request, job_id: int):
 
     image_url = None
     if job.status == "COMPLETED" and job.output_image:
-        image_url = job.output_image.url
+        image_url = job.output_image
 
     return JsonResponse({
         "job_id": job.id,
@@ -295,7 +294,7 @@ def start_superres(request):
         r.raise_for_status()
 
         ts = int(time.time())
-        filename = f"sr_input_job_{job.id}_{ts}.png"  # niente uuid
+        filename = f"original.png"  # niente uuid
 
         job.input_image.save(filename, ContentFile(r.content), save=True)
 

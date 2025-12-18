@@ -142,7 +142,14 @@ DEFAULT_FILE_STORAGE = "tokenopt_site.storage_backends.R2MediaStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-TTO_JOBS_ROOT = MEDIA_ROOT / "tto_jobs"
+TTO_JOBS_ROOT_RELATIVE = "generation/"
+TTO_JOBS_ROOT_ABSOLUTE = MEDIA_ROOT / TTO_JOBS_ROOT_RELATIVE
+
+REMOVEBG_ROOT_RELATIVE = "removebg/"
+REMOVEBG_ROOT_ABSOLUTE = MEDIA_ROOT / REMOVEBG_ROOT_RELATIVE
+
+SUPERRES_ROOT_RELATIVE = "superres/"
+SUPERRES_ROOT_ABSOLUTE = MEDIA_ROOT / SUPERRES_ROOT_RELATIVE
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
@@ -171,7 +178,7 @@ CELERY_TIMEZONE = "Europe/Rome"
 
 # L’output verrà scritto come file dentro {out_dir}.
 SR_CLI_CMD = [
-    "python", "inference_realesrgan.py",
+    "python", "image_editor/services/super_resolution.py",
     "-i", "{in_path}",
     "-o", "{out_dir}",
     "-n", "realesrgan-x4plus",   # oppure realesrgan-x2plus
