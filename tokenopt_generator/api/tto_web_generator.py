@@ -114,8 +114,8 @@ def generate_inpainting(
         )
     else:
         out_path_images = []  # lista dei path delle immagini generate
-        input_tns = image_to_tensor(input_image_path, device=device)  # carico immagine come tensore
-        mask_tns = mask_to_tensor(mask_path, device=device)  # carico maschera come tensore
+        input_tns = image_to_tensor(image_path=input_image_path, device=device)  # carico immagine come tensore
+        mask_tns = mask_to_tensor(mask_path=mask_path, device=device)  # carico maschera come tensore
         input_masked = input_tns * mask_tns  # immagine mascherata
         for name, config, objective_types in configs:
             objectives = []
@@ -143,7 +143,7 @@ def generate_inpainting(
             multi_objective = MultiObjective(objectives, config.objective_weights)
             tto = TestTimeOpt(config.tto_config, multi_objective)
             tto.to(device)
-            result_tns = tto(seed=input_tns)
+            result_tns = tto(seed=input_masked)
             result_img = tensor_to_image(result_tns)
             out_path = output_dir / f"{name}_result.png"
             result_img.save(out_path)
