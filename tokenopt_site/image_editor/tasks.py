@@ -28,21 +28,8 @@ def run_generation_task(job_id: int):
         job.status = "RUNNING"
         job.save(update_fields=["status"])
 
-        # 1) Esegui la pipeline TTO (dummy o reale)
-        generated_paths = run_tto_job(job)  # lista di Path locali
+        generated_urls = run_tto_job(job)
 
-        # 2) Carica i file generati su R2
-        generated_urls = []
-
-        for idx, path in enumerate(generated_paths, start=1):
-            with open(path, "rb") as f:
-                data = f.read()
-            file_name = f"{TTO_JOBS_ROOT_RELATIVE}/job_{job.id}/outputs/gen_{idx:02d}.png"
-            saved_name = default_storage.save(file_name, ContentFile(data))
-            url = default_storage.url(saved_name)
-            generated_urls.append(url)
-
-        # 3) Aggiorna job
         job.status = "COMPLETED"
         job.generated_images = generated_urls
         job.save(update_fields=["status", "generated_images"])

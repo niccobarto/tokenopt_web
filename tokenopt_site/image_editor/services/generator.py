@@ -11,6 +11,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
 from image_editor.models import GenerationJob
+from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE
 
 RUNPOD_URL = os.getenv("TOKENOPT_RUNPOD_URL", "").strip()
 RUNPOD_TIMEOUT = int(os.getenv("TOKENOPT_RUNPOD_TIMEOUT", "600"))
@@ -48,34 +49,43 @@ def run_tto_job(job: GenerationJob) -> Sequence[Path]:
     outputs_dir = base_dir / "outputs"
     outputs_dir.mkdir(parents=True, exist_ok=True)
     input_image_path, mask_path = _ensure_local_inputs(job, base_dir)
+    generated_urls = []
 
     if RUNPOD_URL:
-        generated_paths = _generate_inpainting_runpod(
+        generated_urls = _generate_inpainting_runpod(
             input_image_path=input_image_path,
             mask_path=mask_path,
             prompt=job.prompt,
             num_generations=job.num_generations,
             output_dir=outputs_dir,
+            job=job,
         )
     elif os.getenv("TOKENOPT_ENABLE_GPU", "0") == "1":
-        from tokenopt_generator.api import tto_web_generator
-        generated_paths = tto_web_generator.generate_inpainting(
+        generated_urls = _generate_inpainting_local(
             input_image_path=base_dir / "inputs/original.png",
             mask_path=base_dir / "inputs/mask.png",
             prompt=job.prompt,
             num_generations=job.num_generations,
             output_dir=outputs_dir,
+            job=job,
         )
     else:
-        generated_paths = _generate_inpainting_dummy(
-            input_image_path=input_image_path,
-            mask_path=mask_path,
-            prompt=job.prompt,
-            num_generations=job.num_generations,
-            output_dir=outputs_dir,
-        )
-    return [Path(p) for p in generated_paths]
+        raise RuntimeError("Né RunPod né GPU locale disponibili per l'elaborazione")
+    return [Path(p) for p in generated_urls]
 
+def _generate_inpainting_local(
+input_image_path: Path,
+    mask_path: Path,
+    prompt: str,
+    num_generations: int,
+    output_dir: Path,
+    job: GenerationJob,
+)-> List[Path]:
+    from tokenopt_generator.api import tto_web_generator
+    image_bytes=input_image_path.read_bytes()
+    mask_bytes=mask_path.read_bytes()
+    results=tto_web_generator.generate_inpainting_bytes(image_bytes,mask_bytes,prompt,num_generations)
+    return _save_image_bytes(results,job.id)
 
 def _generate_inpainting_runpod(
     input_image_path: Path,
@@ -83,6 +93,7 @@ def _generate_inpainting_runpod(
     prompt: str,
     num_generations: int,
     output_dir: Path,
+    job: GenerationJob,
 ) -> List[Path]:
     """Chiede a RunPod di generare le immagini e salva i risultati localmente."""
 
@@ -122,50 +133,16 @@ def _generate_inpainting_runpod(
 
         time.sleep(2)
 
+    return _save_image_bytes(results,job.id)
 
+
+
+def _save_image_bytes(results,job_id:int) -> List[Path]:
     out_paths: List[Path] = []
     for idx, result in enumerate(results, start=1):
         image_bytes = base64.b64decode(result["data"])
-
-        file_name = f"{output_dir}/gen_{idx:02d}.png"
+        file_name = f"{TTO_JOBS_ROOT_RELATIVE}/job_{job_id}/outputs/gen_{idx:02d}.png"
         saved_name = default_storage.save(file_name, ContentFile(image_bytes))
         url = default_storage.url(saved_name)
-        out_paths.append(Path(saved_name))
-    return out_paths
-
-def _generate_inpainting_dummy(
-        input_image_path: Path,
-        mask_path: Path,
-        prompt: str,
-        num_generations: int,
-        output_dir: Path,
-) -> List[Path]:
-    """
-    Generatore finto: NON usa torch, NON usa CUDA.
-    Crea semplicemente dei quadrati colorati con un po' di testo.
-    Serve solo per testare pipeline e salvataggio file.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    out_paths: List[Path] = []
-
-    # Carico l'immagine originale solo per prendere la size (se vuoi)
-    try:
-        base_img = Image.open(input_image_path).convert("RGB")
-        width, height = base_img.size
-    except Exception:
-        # fallback se l'immagine non è leggibile
-        width, height = 256, 256
-
-    for i in range(num_generations):
-        img = Image.new("RGB", (width, height), color=(200, 100 + 20 * i, 150))
-
-        draw = ImageDraw.Draw(img)
-        text = f"Dummy {i+1}\n{prompt[:20]}"
-        draw.text((10, 10), text, fill=(0, 0, 0))
-
-        out_path = output_dir / f"dummy_{i+1}.png"
-        img.save(out_path)
-        out_paths.append(out_path)
-
+        out_paths.append(Path(url))
     return out_paths

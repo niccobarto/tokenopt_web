@@ -170,7 +170,7 @@ def generate_inpainting_bytes(
         input_path=inputs_dir / "original.png"
         mask_path=inputs_dir / "mask.png"
 
-        input_path.write_bytes(input_mask_bytes)
+        input_path.write_bytes(input_image_bytes)
         mask_path.write_bytes(input_mask_bytes)
 
         generated_paths=generate_inpainting(
