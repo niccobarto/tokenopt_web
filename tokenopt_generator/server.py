@@ -1,15 +1,17 @@
 import base64
 import json
+import threading
 import os
 import shlex
 import tempfile
 from pathlib import Path
-
+import uuid
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 
 app = FastAPI()
+JOBS={}
 
 @app.get("/health")
 def health_check():
@@ -17,6 +19,31 @@ def health_check():
 
     return {"status": "ok"}
 
+def _run_job(job_id: str, prompt: str, num_generations: int, input_bytes: bytes, mask_bytes: bytes):
+    from tokenopt_generator.api import tto_web_generator
+    try:
+        JOBS[job_id]["status"] = "RUNNING"
+        results = tto_web_generator.generate_inpainting_bytes(
+            input_image_bytes=input_bytes,
+            input_mask_bytes=mask_bytes,
+            prompt=prompt,
+            num_generations=num_generations,
+        )
+
+        # serializziamo in base64 SOLO QUI (boundary di rete)
+        encoded = []
+        for r in results:
+            encoded.append({
+                "filename": r["filename"],
+                "content_type": r["content_type"],
+                "data": base64.b64encode(r["data"]).decode("utf-8"),
+            })
+
+        JOBS[job_id]["status"] = "DONE"
+        JOBS[job_id]["result"] = {"results": encoded}
+    except Exception as e:
+        JOBS[job_id]["status"] = "FAILED"
+        JOBS[job_id]["error"] = str(e)
 
 @app.post("/generate-inpainting")
 async def generate_inpainting(
@@ -25,7 +52,6 @@ async def generate_inpainting(
     input_image: UploadFile = File(...),
     mask_image: UploadFile = File(...),
 ):
-    from tokenopt_generator.api import tto_web_generator
     """Espone la pipeline di inpainting TTO via HTTP.
 
     L'endpoint viene pensato per girare su RunPod: riceve immagine e mask,
@@ -33,55 +59,29 @@ async def generate_inpainting(
     generate come base64.
     """
 
-    try:
-        num_generations = int(num_generations)
-    except (TypeError, ValueError):
-        num_generations = 1
+    input_bytes = await input_image.read()
+    mask_bytes = await mask_image.read()
+    if not input_bytes or not mask_bytes:
+        raise HTTPException(status_code=400, detail="input/mask vuoti")
 
-    if num_generations < 1:
-        raise HTTPException(status_code=400, detail="num_generations deve essere >= 1")
+    job_id = str(uuid.uuid4())
+    JOBS[job_id] = {"status": "QUEUED", "result": None, "error": None}
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        base_dir = Path(tmpdir)
-        inputs_dir = base_dir / "inputs"
-        outputs_dir = base_dir / "outputs"
-        inputs_dir.mkdir(parents=True, exist_ok=True)
-        outputs_dir.mkdir(parents=True, exist_ok=True)
+    th = threading.Thread(
+        target=_run_job,
+        args=(job_id, prompt, int(num_generations), input_bytes, mask_bytes),
+        daemon=True,
+    )
+    th.start()
 
-        input_path = inputs_dir / "original.png"
-        mask_path = inputs_dir / "mask.png"
+    return JSONResponse(status_code=202, content={"job_id": job_id, "status": "QUEUED"})
 
-        for upload, dest_path in (
-            (input_image, input_path),
-            (mask_image, mask_path),
-        ):
-            data = await upload.read()
-            if not data:
-                raise HTTPException(status_code=400, detail=f"{upload.filename} vuoto")
-            dest_path.write_bytes(data)
-
-        generated_paths = tto_web_generator.generate_inpainting(
-            input_image_path=input_path,
-            mask_path=mask_path,
-            prompt=prompt,
-            num_generations=num_generations,
-            output_dir=outputs_dir,
-        )
-
-        results = []
-        for path in generated_paths:
-            image_bytes = Path(path).read_bytes()
-            b64_data = base64.b64encode(image_bytes).decode("utf-8")
-            results.append(
-                {
-                    "filename": Path(path).name,
-                    "content_type": "image/png",
-                    "data": b64_data,
-                }
-            )
-
-        return JSONResponse({"results": results})
-
+@app.get("/jobs/{job.id}") # Recupera lo stato di un job
+def job_status(job_id:str):
+    job=JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trovato")
+    return JSONResponse(content=job)
 
 @app.post("/remove-background")
 async def run_remove_background(

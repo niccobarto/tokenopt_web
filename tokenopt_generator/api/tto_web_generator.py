@@ -6,6 +6,9 @@ from torch import cuda
 from tokenopt_generator.inpaiting_utils.inpainting import add_conf, ObjectiveType, Config, image_to_tensor, \
     tensor_to_image, mask_to_tensor, ComposedCLIP, ReconstructionObjective
 from tokenopt_generator.token_opt.tto.test_time_opt import TestTimeOptConfig, TestTimeOpt, CLIPObjective, MultiObjective
+import tempfile
+import shutil
+
 
 device = "cuda" if cuda.is_available() else "cpu"
 USE_DUMMY_GENERATION = os.getenv("TOKENOPT_USE_DUMMY_GENERATION", "0") == "1"
@@ -146,6 +149,48 @@ def generate_inpainting(
             result_img.save(out_path)
             out_path_images.append(out_path)
         return out_path_images
+
+
+
+def generate_inpainting_bytes(
+        input_image_bytes: bytes,
+        input_mask_bytes: bytes,
+        prompt:str,
+        num_generations:int,
+)->List[dict]:
+    """WRAPPER"""
+
+    workdir=Path(tempfile.mkdtemp(prefix="tto_job"))
+    try:
+        inputs_dir=workdir / "inputs"
+        outputs_dir=workdir / "outputs"
+        inputs_dir.mkdir(parents=True, exist_ok=True)
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+
+        input_path=inputs_dir / "original.png"
+        mask_path=inputs_dir / "mask.png"
+
+        input_path.write_bytes(input_mask_bytes)
+        mask_path.write_bytes(input_mask_bytes)
+
+        generated_paths=generate_inpainting(
+            input_image_path=input_path,
+            mask_path=mask_path,
+            prompt=prompt,
+            num_generations=num_generations,
+            output_dir=outputs_dir,
+        )
+        results=[]
+        for p in generated_paths:
+            result_bytes=p.read_bytes()
+            results.append({
+                "filename":Path(p).name,
+                "content_type":"image/png",
+                "data":result_bytes,
+            })
+        return results
+    finally:
+        shutil.rmtree(workdir,ignore_errors=True)
 
 
 def _generate_inpainting_dummy(

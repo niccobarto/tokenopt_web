@@ -130,8 +130,7 @@ def add_conf(name, tto_params, cfg_scale, num_aug, weights,
 
 
 #region Utility per caricamento immagini/maschere e conversione tensore<->immagine
-def image_to_tensor(image_path: Path, size: int = 256, device = None) -> Tensor:
-    img = Image.open(image_path).convert("RGB")
+def image_to_tensor(img: Image, size: int = 256, device = None) -> Tensor:
     t = (1.0 / 255.0) * torch.from_numpy(np.array(img).astype(np.float32)).permute(2, 0, 1)
     # torchvision v2 expects size as sequence for some overloads; pass [size, size]
     t = tvf.resize(t, [size, size])
@@ -142,15 +141,14 @@ def image_to_tensor(image_path: Path, size: int = 256, device = None) -> Tensor:
     return t
 
 
-def mask_to_tensor(mask_path: Path, size: int = 256, threshold: float = 0.5, device = None) -> Tensor:
+def mask_to_tensor(mask: Image, size: int = 256, threshold: float = 0.5, device = None) -> Tensor:
     """
     Carica maschera, la converte in scala di grigi, la ridimensiona e la binarizza.
     Restituisce tensore [1,1,H,W] con valori 0.0/1.0 (1 = FUORI, 0 = BUCO).
     Per default (device=None) mantiene il tensore su CPU per risparmiare VRAM;
     passare device=DEVICE per spostarlo subito su GPU.
     """
-    m = Image.open(mask_path).convert("L")  # scala di grigi
-    arr = (np.array(m).astype(np.float32) / 255.0)
+    arr = (np.array(mask).astype(np.float32) / 255.0)
     t = torch.from_numpy(arr)  # [H,W]
     t = t.unsqueeze(0)  # [1,H,W] per compatibilità con tvf
     # same resizing behaviour as images

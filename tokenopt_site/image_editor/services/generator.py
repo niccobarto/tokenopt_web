@@ -1,11 +1,15 @@
 # image_editor/services/tto_runner.py
 import base64
 import os
+import time
 from pathlib import Path
 from typing import Sequence, List, Tuple
 import requests
 from PIL import Image, ImageDraw
 from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+
 from image_editor.models import GenerationJob
 
 RUNPOD_URL = os.getenv("TOKENOPT_RUNPOD_URL", "").strip()
@@ -96,6 +100,7 @@ def _generate_inpainting_runpod(
 
     response = requests.post(endpoint, data=data, files=files, timeout=RUNPOD_TIMEOUT)
     response.raise_for_status()
+    job_id = response.json()["job_id"]
 
     payload = response.json()
     results = payload.get("results") or []
@@ -103,18 +108,31 @@ def _generate_inpainting_runpod(
     if not isinstance(results, list):
         raise RuntimeError("Risposta RunPod malformata: 'results' non è una lista")
 
+    status_url=f"{RUNPOD_URL.rstrip('/')}/jobs/{job_id}"
+    while True:
+        r=requests.get(status_url, timeout=10)
+        r.raise_for_status()
+        payload=r.json()
+
+        if payload["status"]=="DONE":
+            results=payload["result"]["results"]
+            break
+        if payload["status"]=="FAILED":
+            raise RuntimeError(payload.get("error"))
+
+        time.sleep(2)
+
+
     out_paths: List[Path] = []
     for idx, result in enumerate(results, start=1):
-        if "data" not in result:
-            raise RuntimeError("Elemento di risposta RunPod privo di campo 'data'")
-
-        filename = result.get("filename") or f"runpod_{idx:02d}.png"
-        out_path = output_dir / filename
         image_bytes = base64.b64decode(result["data"])
-        out_path.write_bytes(image_bytes)
-        out_paths.append(out_path)
 
+        file_name = f"{output_dir}/gen_{idx:02d}.png"
+        saved_name = default_storage.save(file_name, ContentFile(image_bytes))
+        url = default_storage.url(saved_name)
+        out_paths.append(Path(saved_name))
     return out_paths
+
 def _generate_inpainting_dummy(
         input_image_path: Path,
         mask_path: Path,
