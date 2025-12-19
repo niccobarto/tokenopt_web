@@ -76,7 +76,7 @@ async def generate_inpainting(
 
     return JSONResponse(status_code=202, content={"job_id": job_id, "status": "QUEUED"})
 
-@app.get("/jobs/{job.id}") # Recupera lo stato di un job
+@app.get("/jobs/{job_id}") # Recupera lo stato di un job
 def job_status(job_id:str):
     job=JOBS.get(job_id)
     if not job:
