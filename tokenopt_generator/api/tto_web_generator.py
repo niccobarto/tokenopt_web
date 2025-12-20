@@ -140,7 +140,7 @@ def generate_inpainting(
         tto = TestTimeOpt(config.tto_config, multi_objective)
         tto.to(device)
         result_tns = tto(seed=input_masked)
-        output_tns=input_tns * (1 - mask_tns) + result_tns * mask_tns
+        output_tns=input_tns * mask_tns + result_tns * (1-mask_tns)
         result_img = tensor_to_image(result_tns)
         output_img= tensor_to_image(output_tns)
         result_path=output_dir / f"{name}_raw_result.png"
