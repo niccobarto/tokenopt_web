@@ -146,7 +146,10 @@ def generation_status_view(request, job_id: int):
     job = get_object_or_404(GenerationJob, id=job_id)
     urls=[]
     for img_url in job.generated_images:
-        urls.append(default_storage.url(img_url))
+        if not img_url.__contains__("media"):
+            urls.append(default_storage.url(img_url))
+        else:
+            urls.append(img_url)
     data = {
         "job_id": job.id,
         "status": job.status,

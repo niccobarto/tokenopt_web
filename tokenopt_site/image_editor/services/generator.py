@@ -15,7 +15,7 @@ from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE
 
 RUNPOD_URL = os.getenv("TOKENOPT_RUNPOD_URL", "").strip()
 RUNPOD_TIMEOUT = int(os.getenv("TOKENOPT_RUNPOD_TIMEOUT", "600"))
-
+DUMMY_GENERATION = bool(os.getenv("DUMMY_GENERATION", "True"))
 
 def run_tto_job(job: GenerationJob) -> list[str]:
     """
@@ -35,7 +35,7 @@ def run_tto_job(job: GenerationJob) -> list[str]:
         mask_bytes = f.read()
     generated_urls = []
 
-    if RUNPOD_URL:
+    if RUNPOD_URL and not DUMMY_GENERATION:
         generated_urls = _generate_inpainting_runpod(
             input_image_bytes=input_image_bytes,
             mask_bytes=mask_bytes,
@@ -43,16 +43,15 @@ def run_tto_job(job: GenerationJob) -> list[str]:
             num_generations=job.num_generations,
             job=job,
         )
-    elif os.getenv("TOKENOPT_ENABLE_GPU", "0") == "1":
+    else:
         generated_urls = _generate_inpainting_local(
             input_image_bytes=input_image_bytes,
             mask_bytes=mask_bytes,
             prompt=job.prompt,
             num_generations=job.num_generations,
             job=job,
+            dummy=DUMMY_GENERATION
         )
-    else:
-        raise RuntimeError("Né RunPod né GPU locale disponibili per l'elaborazione")
     return generated_urls
 
 def _generate_inpainting_local(
@@ -61,10 +60,21 @@ def _generate_inpainting_local(
     prompt: str,
     num_generations: int,
     job: GenerationJob,
+    dummy:bool,
 )-> List[str]:
-    from tokenopt_generator.api import tto_web_generator
-    results=tto_web_generator.generate_inpainting_bytes(input_image_bytes,mask_bytes,prompt,num_generations)
-    return _save_image_bytes(results,job.id)
+    if not dummy:
+        from tokenopt_generator.api import tto_web_generator
+        results=tto_web_generator.generate_inpainting_bytes(input_image_bytes,mask_bytes,prompt,num_generations)
+        return _save_image_bytes(results,job.id)
+    else:
+        return _generate_inpainting_dummy(
+            input_image_bytes=input_image_bytes,
+            input_mask_bytes=mask_bytes,
+            prompt=prompt,
+            num_generations=num_generations,
+            output_dir= Path(f"{TTO_JOBS_ROOT_RELATIVE}/job_{job.id}/outputs"),
+        )
+
 
 def _generate_inpainting_runpod(
     input_image_bytes: bytes,
@@ -122,4 +132,48 @@ def _save_image_bytes(results,job_id:int) -> List[str]:
         saved_name = default_storage.save(file_name, ContentFile(image_bytes))
         url = default_storage.url(saved_name)
         out_paths.append(saved_name)
+    return out_paths
+
+def _generate_inpainting_dummy(
+        input_image_bytes: bytes,
+        input_mask_bytes: bytes,
+        prompt: str,
+        num_generations: int,
+        output_dir: Path,
+) -> List[str]:
+    """
+    Generatore finto: salva usando lo storage Django.
+    Nota: `output_dir` deve essere relativo alla MEDIA_ROOT (non MEDIA_URL).
+    Ritorna i path salvati (relativi allo storage); per URL usare `default_storage.url(saved_name)`.
+    """
+    # Assicuriamoci che output_dir sia relativo allo storage (MEDIA_ROOT)
+    # e che la directory esista: default_storage si occupa della creazione.
+
+    out_paths: List[str] = []
+
+    # Determina dimensioni dai bytes
+    try:
+        from PIL import Image
+        import io
+        base_img = Image.open(io.BytesIO(input_image_bytes)).convert("RGB")
+        width, height = base_img.size
+    except Exception:
+        width, height = 256, 256
+
+    # Genera e salva tramite storage
+    for idx in range(num_generations):
+        img = Image.new("RGB", (width, height), color=(200, 100 + 20 * idx, 150))
+        draw = ImageDraw.Draw(img)
+        text = f"gen_{idx+1:02d}\n{prompt[:32]}"
+        draw.text((10, 10), text, fill=(0, 0, 0))
+
+        rel_file = f"{output_dir}/gen_{idx+1:02d}.png"
+        # Serializza in memoria e salva via storage (crea cartella se manca)
+        import io as _io
+        buf = _io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        saved_name = default_storage.save(rel_file, ContentFile(buf.read()))
+        out_paths.append(saved_name)
+
     return out_paths
