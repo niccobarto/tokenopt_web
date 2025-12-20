@@ -41,6 +41,7 @@ def run_tto_job(job: GenerationJob) -> list[str]:
             mask_bytes=mask_bytes,
             prompt=job.prompt,
             num_generations=job.num_generations,
+            configs=job.configs,
             job=job,
         )
     else:
@@ -82,6 +83,7 @@ def _generate_inpainting_runpod(
     prompt: str,
     num_generations: int,
     job: GenerationJob,
+    configs:dict[str,bool],
 ) -> List[str]:
     """Chiede a RunPod di generare le immagini e salva i risultati localmente."""
 
@@ -94,6 +96,7 @@ def _generate_inpainting_runpod(
     data = {
         "prompt": prompt,
         "num_generations": str(num_generations),
+        "configs": str(configs),
     }
 
     response = requests.post(endpoint, data=data, files=files, timeout=RUNPOD_TIMEOUT)

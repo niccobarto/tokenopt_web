@@ -43,7 +43,7 @@ class GenerationJob(models.Model):
                             )
     prompt=models.TextField()
     num_generations=models.IntegerField(default=1)
-
+    configs=models.JSONField(default=dict,blank=True)
     #file in input
     input_image=models.ImageField(upload_to=generation_input_path,null=True,blank=True)
     input_mask=models.ImageField(upload_to=generation_input_path, null=True, blank=True)

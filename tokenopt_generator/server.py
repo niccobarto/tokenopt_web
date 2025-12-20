@@ -19,7 +19,7 @@ def health_check():
 
     return {"status": "ok"}
 
-def _run_job(job_id: str, prompt: str, num_generations: int, input_bytes: bytes, mask_bytes: bytes):
+def _run_job(job_id: str, prompt: str, num_generations: int, configs:dict[str,bool] ,input_bytes: bytes, mask_bytes: bytes):
     from tokenopt_generator.api import tto_web_generator
     try:
         JOBS[job_id]["status"] = "RUNNING"
@@ -28,6 +28,7 @@ def _run_job(job_id: str, prompt: str, num_generations: int, input_bytes: bytes,
             input_mask_bytes=mask_bytes,
             prompt=prompt,
             num_generations=num_generations,
+            configs=configs,
         )
 
         # serializziamo in base64 SOLO QUI (boundary di rete)
@@ -49,6 +50,7 @@ def _run_job(job_id: str, prompt: str, num_generations: int, input_bytes: bytes,
 async def generate_inpainting(
     prompt: str = Form(...),
     num_generations: int = Form(1),
+    configs: dict[str,bool] = Form("{}"),
     input_image: UploadFile = File(...),
     mask_image: UploadFile = File(...),
 ):
@@ -69,7 +71,7 @@ async def generate_inpainting(
 
     th = threading.Thread(
         target=_run_job,
-        args=(job_id, prompt, int(num_generations), input_bytes, mask_bytes),
+        args=(job_id, prompt, int(num_generations), configs, input_bytes, mask_bytes),
         daemon=True,
     )
     th.start()

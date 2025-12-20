@@ -12,9 +12,10 @@ import shutil
 
 device = "cuda" if cuda.is_available() else "cpu"
 # region Configurazioni TTO
-configs = [
+configs_implemented = [
     add_conf(
-        name="C1_RESET",
+        #name="C1_RESET",
+        name="config1",
         tto_params=dict(
             num_iter=351,
             ema_decay=0.97,
@@ -34,7 +35,8 @@ configs = [
                          ObjectiveType.ComposedCLIP]
     ),
     add_conf(
-        name="C3_RECON_STRONG_RESET",
+        #name="C3_RECON_STRONG_RESET",
+        name="config2",
         tto_params=dict(
             num_iter=351,
             ema_decay=0.95,
@@ -54,7 +56,8 @@ configs = [
                          ObjectiveType.ComposedCLIP]
     ),
     add_conf(
-        name="C4_CLIPONLY_RESET",
+        #name="C4_CLIPONLY_RESET",
+        name="config3",
         tto_params=dict(
             num_iter=351,
             ema_decay=0.95,
@@ -73,7 +76,8 @@ configs = [
         objective_types=[ObjectiveType.ComposedCLIP]
     ),
     add_conf(
-        name="C9CLIPONLYSTRONG_RESET",
+        #name="C9CLIPONLYSTRONG_RESET",
+        name="config4",
         tto_params=dict(
             num_iter=351,
             ema_decay=0.98,
@@ -101,13 +105,16 @@ def generate_inpainting(
         mask_path: Path,
         prompt: str,
         num_generations: int,
+        configs:dict[str,bool],
         output_dir: Path,
 ):
     out_path_images = []  # lista dei path delle immagini generate
     input_tns = image_to_tensor(image_path=input_image_path, device=device)  # carico immagine come tensore
     mask_tns = mask_to_tensor(mask_path=mask_path, device=device)  # carico maschera come tensore
     input_masked = input_tns * mask_tns  # immagine mascherata
-    for name, config, objective_types in configs:
+    for name, config, objective_types in configs_implemented:
+        if not configs[name]:
+            continue
         objectives = []
         for obj_type, weight in zip(objective_types, config.objective_weights):
             if obj_type == ObjectiveType.ReconstructionObjective:
@@ -150,6 +157,7 @@ def generate_inpainting_bytes(
         input_mask_bytes: bytes,
         prompt:str,
         num_generations:int,
+        configs:dict[str,bool],
 )->List[dict]:
     """WRAPPER"""
 
@@ -172,6 +180,7 @@ def generate_inpainting_bytes(
             mask_path=mask_path,
             prompt=prompt,
             num_generations=num_generations,
+            configs=configs,
             output_dir=outputs_dir,
         )
         for p in generated_paths:

@@ -80,6 +80,13 @@ def start_generation_view(request):
     original_dataurl = request.POST.get("original_image", "").strip()
     mask_dataurl = request.POST.get("mask_image", "").strip()
     upload_id = request.POST.get("upload_id")
+    configs = {
+        "config1": bool(request.POST.get("config1")),
+        "config2": bool(request.POST.get("config2")),
+        "config3": bool(request.POST.get("config3")),
+        "config4": bool(request.POST.get("config4")),
+    }
+
     upload=None
     if upload_id:
         try:
@@ -124,6 +131,7 @@ def start_generation_view(request):
         prompt=prompt,
         num_generations=num_generations,
         status="PENDING",
+        configs=configs,
     )
     job.input_mask=mask_img
     job.input_image=original_img
