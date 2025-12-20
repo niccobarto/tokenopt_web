@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-
+import json
 from image_editor.models import GenerationJob
 from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE
 
@@ -96,7 +96,7 @@ def _generate_inpainting_runpod(
     data = {
         "prompt": prompt,
         "num_generations": str(num_generations),
-        "configs": str(configs),
+        "configs": json.dump(configs),
     }
 
     response = requests.post(endpoint, data=data, files=files, timeout=RUNPOD_TIMEOUT)

@@ -50,7 +50,7 @@ def _run_job(job_id: str, prompt: str, num_generations: int, configs:dict[str,bo
 async def generate_inpainting(
     prompt: str = Form(...),
     num_generations: int = Form(1),
-    configs: dict[str,bool] = Form("{}"),
+    configs: str = Form("{}"),
     input_image: UploadFile = File(...),
     mask_image: UploadFile = File(...),
 ):
@@ -60,6 +60,14 @@ async def generate_inpainting(
     richiama ``tto_web_generator.generate_inpainting`` e restituisce le immagini
     generate come base64.
     """
+
+    try:
+        configs_dict = json.loads(configs)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="configs non è JSON valido")
+
+    if not isinstance(configs_dict, dict):
+        raise HTTPException(status_code=400, detail="configs deve essere un oggetto JSON")
 
     input_bytes = await input_image.read()
     mask_bytes = await mask_image.read()
