@@ -101,20 +101,22 @@
                                     aria-label="Size"
                             />
                         </div>
+                        <div class="row">
+                            <button type="button" id="clear">Pulisci</button>
+                        </div>
 
                         <div class="row distance space-between">
-                            <button type="button" id="clear">Pulisci</button>
                             <div>
                                 <label class="label" for="rembgModel">Modello rimozione sfondo:</label>
                                 <div class="row space-between">
                                     <select id="rembgModel" name="rembg_model" class="select">
-                                    <option value="u2net" selected>U2NET</option>
-                                    <option value="sam">SAM</option>
-                                    <option value="isnet-general-use">ISNET</option>
-                                    <option value="birefnet-general">BIREFNET</option>
-                                </select>
-                                <button class="special-button" type="button" id="removeBackground">Remove background
-                                </button>
+                                        <option value="u2net" selected>U2NET</option>
+                                        <option value="sam">SAM</option>
+                                        <option value="isnet-general-use">ISNET</option>
+                                        <option value="birefnet-general">BIREFNET</option>
+                                    </select>
+                                    <button class="special-button" type="button" id="removeBackground">Remove background
+                                    </button>
                                 </div>
                             </div>
                         </div>

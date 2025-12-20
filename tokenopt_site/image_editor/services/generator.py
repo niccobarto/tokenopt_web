@@ -15,7 +15,7 @@ from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE
 
 RUNPOD_URL = os.getenv("TOKENOPT_RUNPOD_URL", "").strip()
 RUNPOD_TIMEOUT = int(os.getenv("TOKENOPT_RUNPOD_TIMEOUT", "600"))
-DUMMY_GENERATION = bool(os.getenv("DUMMY_GENERATION", "True"))
+DUMMY_GENERATION = True if os.getenv("DUMMY_GENERATION") == "True" else False
 
 def run_tto_job(job: GenerationJob) -> list[str]:
     """

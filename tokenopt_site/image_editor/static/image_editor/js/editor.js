@@ -328,6 +328,36 @@ canvasElement.addEventListener("mouseleave", () => {
     context.closePath();
 });
 
+function maskCanvasToDataURL() {
+    const imageData = context.getImageData(0, 0, canvasElement.width, canvasElement.height);
+    const w = imageData.width;
+    const h = imageData.height;
+
+    const tmpCanvas = document.createElement("canvas");
+    tmpCanvas.width = w;
+    tmpCanvas.height = h;
+    const tmpCtx = tmpCanvas.getContext("2d");
+
+    const outImageData = tmpCtx.createImageData(w, h);
+    const src = imageData.data;
+    const dst = outImageData.data;
+
+    for (let i = 0; i < src.length; i += 4) {
+        const alpha = src[i + 3];
+        const bw = alpha > 0 ? 0 : 255; // disegnato = nero, vuoto = bianco
+
+        dst[i] = bw;
+        dst[i + 1] = bw;
+        dst[i + 2] = bw;
+        dst[i + 3] = 255;
+    }
+
+    tmpCtx.putImageData(outImageData, 0, 0);
+    return tmpCanvas.toDataURL("image/png");
+}
+
+
+
 // ---------- DOWNLOAD ZIP (original + mask) ----------
 
 // helper: aggiunge un ImageData come PNG (bianco/nero) allo zip
@@ -630,7 +660,7 @@ if (startButtons.length && generationForm) {
                 hiddenPrompt.value = (promptTextarea?.value || "").trim();
                 hiddenNumGenerations.value = String(numGenValue);
                 hiddenOriginalImage.value = bgCanvasElement.toDataURL("image/png");
-                hiddenMaskImage.value = canvasElement.toDataURL("image/png");
+                hiddenMaskImage.value = maskCanvasToDataURL();
 
                 // ⚠️ QUI NON FACCIAMO PIÙ generationForm.submit()
                 // Invece inviamo via fetch e restiamo sulla stessa pagina
