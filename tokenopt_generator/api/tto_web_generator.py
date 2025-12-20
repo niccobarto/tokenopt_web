@@ -129,10 +129,9 @@ def generate_inpainting(
                         cfg_scale=config.cfg_scale,
                         num_augmentations=config.num_augmentations
                     )  # creo la CLIPObjective di base
-                    orig_img = input_tns
                     composed_clip_obj = ComposedCLIP(
                         base_clip_obj=base_clip_obj,
-                        orig_img=orig_img,
+                        orig_img=input_tns,
                         mask_bin=mask_tns,
                         outside_grad=0.0
                     )  # creo la ComposedCLIP

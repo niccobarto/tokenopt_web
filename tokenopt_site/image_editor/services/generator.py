@@ -17,26 +17,7 @@ RUNPOD_URL = os.getenv("TOKENOPT_RUNPOD_URL", "").strip()
 RUNPOD_TIMEOUT = int(os.getenv("TOKENOPT_RUNPOD_TIMEOUT", "600"))
 
 
-def _ensure_local_inputs(job: GenerationJob, base_dir: Path) -> Tuple[Path, Path]:
-    """Scarica (se necessario) immagine e maschera nella workspace locale."""
-
-    inputs_dir = base_dir / "inputs"
-    inputs_dir.mkdir(parents=True, exist_ok=True)
-
-    input_image_path = inputs_dir / "original.png"
-    mask_path = inputs_dir / "mask.png"
-
-    if job.input_image and not input_image_path.exists():
-        with job.input_image.open("rb") as src:
-            input_image_path.write_bytes(src.read())
-
-    if job.input_mask and not mask_path.exists():
-        with job.input_mask.open("rb") as src:
-            mask_path.write_bytes(src.read())
-
-    return input_image_path, mask_path
-
-def run_tto_job(job: GenerationJob) -> Sequence[Path]:
+def run_tto_job(job: GenerationJob) -> list[str]:
     """
     API principale:
     - usa l'id del job come identificatore
@@ -47,62 +28,58 @@ def run_tto_job(job: GenerationJob) -> Sequence[Path]:
     """
     base_dir = Path(settings.TTO_JOBS_ROOT_ABSOLUTE) / f"job_{job.id}"
     outputs_dir = base_dir / "outputs"
-    outputs_dir.mkdir(parents=True, exist_ok=True)
-    input_image_path, mask_path = _ensure_local_inputs(job, base_dir)
+    with job.input_image.open("rb") as f:
+        input_image_bytes = f.read()
+
+    with job.input_mask.open("rb") as f:
+        mask_bytes = f.read()
     generated_urls = []
 
     if RUNPOD_URL:
         generated_urls = _generate_inpainting_runpod(
-            input_image_path=input_image_path,
-            mask_path=mask_path,
+            input_image_bytes=input_image_bytes,
+            mask_bytes=mask_bytes,
             prompt=job.prompt,
             num_generations=job.num_generations,
-            output_dir=outputs_dir,
             job=job,
         )
     elif os.getenv("TOKENOPT_ENABLE_GPU", "0") == "1":
         generated_urls = _generate_inpainting_local(
-            input_image_path=base_dir / "inputs/original.png",
-            mask_path=base_dir / "inputs/mask.png",
+            input_image_bytes=input_image_bytes,
+            mask_bytes=mask_bytes,
             prompt=job.prompt,
             num_generations=job.num_generations,
-            output_dir=outputs_dir,
             job=job,
         )
     else:
         raise RuntimeError("Né RunPod né GPU locale disponibili per l'elaborazione")
-    return [Path(p) for p in generated_urls]
+    return generated_urls
 
 def _generate_inpainting_local(
-input_image_path: Path,
-    mask_path: Path,
+    input_image_bytes: bytes,
+    mask_bytes: bytes,
     prompt: str,
     num_generations: int,
-    output_dir: Path,
     job: GenerationJob,
-)-> List[Path]:
+)-> List[str]:
     from tokenopt_generator.api import tto_web_generator
-    image_bytes=input_image_path.read_bytes()
-    mask_bytes=mask_path.read_bytes()
-    results=tto_web_generator.generate_inpainting_bytes(image_bytes,mask_bytes,prompt,num_generations)
+    results=tto_web_generator.generate_inpainting_bytes(input_image_bytes,mask_bytes,prompt,num_generations)
     return _save_image_bytes(results,job.id)
 
 def _generate_inpainting_runpod(
-    input_image_path: Path,
-    mask_path: Path,
+    input_image_bytes: bytes,
+    mask_bytes: bytes,
     prompt: str,
     num_generations: int,
-    output_dir: Path,
     job: GenerationJob,
-) -> List[Path]:
+) -> List[str]:
     """Chiede a RunPod di generare le immagini e salva i risultati localmente."""
 
     endpoint = f"{RUNPOD_URL.rstrip('/')}/generate-inpainting"
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     files = {
-        "input_image": (input_image_path.name, input_image_path.open("rb"), "image/png"),
-        "mask_image": (mask_path.name, mask_path.open("rb"), "image/png"),
+        "input_image": ("input.png", input_image_bytes, "image/png"),
+        "mask_image": ("mask.png", mask_bytes, "image/png"),
     }
     data = {
         "prompt": prompt,
@@ -137,12 +114,12 @@ def _generate_inpainting_runpod(
 
 
 
-def _save_image_bytes(results,job_id:int) -> List[Path]:
-    out_paths: List[Path] = []
+def _save_image_bytes(results,job_id:int) -> List[str]:
+    out_paths: List[str] = []
     for idx, result in enumerate(results, start=1):
         image_bytes = base64.b64decode(result["data"])
         file_name = f"{TTO_JOBS_ROOT_RELATIVE}/job_{job_id}/outputs/gen_{idx:02d}.png"
         saved_name = default_storage.save(file_name, ContentFile(image_bytes))
         url = default_storage.url(saved_name)
-        out_paths.append(Path(url))
+        out_paths.append(saved_name)
     return out_paths

@@ -141,14 +141,17 @@ def generation_status_view(request, job_id: int):
     Ritorna JSON con:
     - status: PENDING / RUNNING / COMPLETED / FAILED
     - error: eventuale messaggio di errore
-    - generated_images: lista di URL (su R2) delle immagini generate
+    - urls: lista di URL (su R2) delle immagini generate
     """
     job = get_object_or_404(GenerationJob, id=job_id)
+    urls=[]
+    for img_url in job.generated_images:
+        urls.append(default_storage.url(img_url))
     data = {
         "job_id": job.id,
         "status": job.status,
         "error": job.error_message,
-        "generated_images": job.generated_images or [],
+        "generated_images": urls,
         # volendo puoi anche inserire gli URL di input:
         # "input_image": job.input_image.url if job.input_image else None,
         # "input_mask": job.input_mask.url if job.input_mask else None,
