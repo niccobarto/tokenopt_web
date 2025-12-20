@@ -113,7 +113,7 @@ def generate_inpainting(
     mask_tns = mask_to_tensor(mask_path=mask_path, device=device)  # carico maschera come tensore
     input_masked = input_tns * mask_tns  # immagine mascherata
     for name, config, objective_types in configs_implemented:
-        if not configs[name]:
+        if not configs.get(name, False):
             continue
         objectives = []
         for obj_type, weight in zip(objective_types, config.objective_weights):

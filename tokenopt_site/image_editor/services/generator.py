@@ -96,7 +96,7 @@ def _generate_inpainting_runpod(
     data = {
         "prompt": prompt,
         "num_generations": str(num_generations),
-        "configs": json.dump(configs),
+        "configs": json.dumps(configs),
     }
 
     response = requests.post(endpoint, data=data, files=files, timeout=RUNPOD_TIMEOUT)

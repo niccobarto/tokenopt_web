@@ -63,6 +63,7 @@ async def generate_inpainting(
 
     try:
         configs_dict = json.loads(configs)
+        configs_bool: dict[str, bool] = {k: bool(v) for k, v in configs_dict.items()}
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="configs non è JSON valido")
 
@@ -79,7 +80,7 @@ async def generate_inpainting(
 
     th = threading.Thread(
         target=_run_job,
-        args=(job_id, prompt, int(num_generations), configs, input_bytes, mask_bytes),
+        args=(job_id, prompt, int(num_generations), configs_bool, input_bytes, mask_bytes),
         daemon=True,
     )
     th.start()
