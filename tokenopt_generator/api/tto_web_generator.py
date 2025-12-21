@@ -191,9 +191,11 @@ def generate_inpainting_bytes(
                 "data":result_bytes,
             })
         return results
-    except Exception:
-        # In caso di errore, manteniamo la firma e ritorniamo una lista vuota
-        return results
+    except Exception as e:
+        import traceback
+        print("TTO ERROR:", repr(e))
+        print(traceback.format_exc())
+        raise
     finally:
         shutil.rmtree(workdir,ignore_errors=True)
 
