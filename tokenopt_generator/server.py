@@ -6,8 +6,8 @@ import shlex
 import uuid
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-
-
+from dotenv import load_dotenv
+load_dotenv()
 app = FastAPI()
 JOBS={}
 
