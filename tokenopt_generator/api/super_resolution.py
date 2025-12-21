@@ -30,7 +30,7 @@ def run_realesgan(input_bytes: bytes, sr_cli_cmd: list[str]) -> bytes:
         completed = subprocess.run(cmd,
                                    capture_output=True,
                                    text=True,
-                                   cwd="/opt/realesrgan",
+                                   cwd="/workspace/tools/realesrgan",
                                    )
 
         if completed.returncode != 0:
