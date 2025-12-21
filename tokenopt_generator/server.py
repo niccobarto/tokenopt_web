@@ -120,14 +120,28 @@ async def run_remove_background(
 async def run_super_resolution(
     input_image: UploadFile = File(...),
 ):
-    """Esegue Real-ESRGAN nel pod GPU e restituisce l'immagine upscalata in base64."""
-    from tokenopt_generator.api import super_resolution
-    sr_cli_cmd = _load_sr_cli_cmd()
+    """
+    Esegue Real-ESRGAN su CUDA (PyTorch) e restituisce PNG base64.
+    """
+    from tokenopt_generator.api.super_resolution import run_realesgan, SRConfig
+
     image_bytes = await input_image.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="input_image vuoto")
 
-    output_bytes = super_resolution.run_realesgan(image_bytes, sr_cli_cmd=sr_cli_cmd)
+    # Config: puoi anche leggerla da env se vuoi (ma non è necessario)
+    cfg = SRConfig(
+        weights_path="/workspace/models/realesrgan/RealESRGAN_x4plus.pth",
+        tile=0,         # se OOM, metti 256 o 512
+        half=True,
+        device="cuda",
+    )
+
+    try:
+        output_bytes = run_realesgan(image_bytes, cfg=cfg)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     b64_data = base64.b64encode(output_bytes).decode("utf-8")
 
     return JSONResponse(
@@ -142,36 +156,3 @@ async def run_super_resolution(
 
 
 __all__ = ["app"]
-
-def _load_sr_cli_cmd() -> list[str]:
-    """Legge il comando Real-ESRGAN dall'env.
-
-    Accetta una lista JSON (es. ["python", "inference.py", "-i", "{in_path}", "-o", "{out_dir}"])
-    oppure una stringa stile shell. Manteniamo la funzione semplice e commentata.
-    """
-
-    raw = os.getenv("TOKENOPT_SR_CLI_CMD", "").strip()
-    if not raw:
-        raise RuntimeError(
-            "TOKENOPT_SR_CLI_CMD non è impostata: specifica il comando Real-ESRGAN del pod."
-)
-
-    # Se arriva una lista JSON la usiamo così com'è
-    if raw.startswith("["):
-        try:
-            parsed=json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"TOKENOPT_SR_CLI_CMD non è JSON valido: {e}") from e
-
-        if not isinstance(parsed,list) or not all(isinstance(x,str) for x in parsed):
-            raise RuntimeError("TOKENOPT_SR_CLI_CMD JSON deve essere una lista di stringhe")
-        cmd=parsed
-    else:
-        cmd=shlex.split(raw)
-
-    joined=" ".join(cmd)
-    if "{in_path}" not in joined:
-        raise RuntimeError("TOKENOPT_SR_CLI_CMD deve contenere il placeholder {in_path}")
-    if "{out_path}" not in joined and "{out_dir}" not in joined:
-        raise RuntimeError("TOKENOPT_SR_CLI_CMD deve contenere il placeholder {out_path} o {out_dir}")
-    return cmd

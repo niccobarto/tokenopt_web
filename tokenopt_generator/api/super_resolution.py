@@ -1,53 +1,107 @@
+import io
 import os
 import subprocess
 import tempfile
+import threading
+from dataclasses import dataclass
+from typing import Optional
+import numpy as np
+from PIL import Image
 
+import cv2
+import torch
 
-def run_realesgan(input_bytes: bytes, sr_cli_cmd: list[str]) -> bytes:
-    """
-    Esegue la super-risoluzione usando Real-ESRGAN CLI.
-    Scrive l'output in un comando temporaneo, lancia la CLI e legge il file output prodotto
-    """
+from realesrgan import RealESRGANer
+from basicsr.archs.rrdbnet_arch import RRDBNet
 
-    if not sr_cli_cmd:
-        raise RuntimeError("Comando CLI per Real-ESRGAN non fornito")
+@dataclass
+class SRConfig:
+    model_name: str = "realesrgan-x4plus"
+    scale: int = 4
+    weights_path: str = "/workspace/models/realesrgan/realesrgan-x4plus.pth"
+    tile: int = 0  # 0 = nessun tiling. Se OOM, imposta 256/512
+    tile_pad: int = 10
+    pre_pad: int = 0
+    half: bool = True  # FP16 se GPU lo supporta (quasi sempre su RunPod)
+    device: str = "cuda"
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Prepariamo i path e le cartelle
-        in_path=os.path.join(tmpdir, "input.png")
-        out_dir=os.path.join(tmpdir, "out")
-        os.makedirs(out_dir, exist_ok=True)
-        out_path = os.path.join(out_dir, "output.png")
+_model_lock = threading.Lock()
+_model: Optional[RealESRGANer] = None
+_model_cfg: Optional[SRConfig] = None
 
-        # Scriviamo il file di input
-        with open(in_path, "wb") as f:
-            f.write(input_bytes)
+def _build_model(cfg:SRConfig) -> RealESRGANer:
+    if cfg.device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA non disponibile: torch.cuda.is_available() == False")
 
-        # Costruiamo il comando
-        cmd=[part.format(in_path=in_path, out_path=out_path, out_dir=out_dir) for part in sr_cli_cmd]
+    model = RRDBNet(
+        num_in_ch=3,
+        num_out_ch=3,
+        num_feat=64,
+        num_block=23,
+        num_grow_ch=32,
+        scale=cfg.scale,
+    )
+    if not os.path.exists(cfg.weights_path):
+        raise RuntimeError(
+            "Pesi Real-ESRGAN non trovati.\n"
+            f"Expected: {cfg.weights_path}\n\n"
+            "Metti il file .pth nel volume persistente (es. /workspace/models/realesrgan/) "
+            "e riprova."
+        )
 
-        # Lancio la CLI e raccolgo stdout/stderr per debug
-        completed = subprocess.run(cmd,
-                                   capture_output=True,
-                                   text=True,
-                                   cwd="/workspace/tools/realesrgan",
-                                   )
+    upsampler = RealESRGANer(
+        scale=cfg.scale,
+        model_path=cfg.weights_path,
+        model=model,
+        tile=cfg.tile,
+        tile_pad=cfg.tile_pad,
+        pre_pad=cfg.pre_pad,
+        half=cfg.half,
+        device=torch.device(cfg.device),
+    )
+    return upsampler
 
-        if completed.returncode != 0:
-            raise RuntimeError(
-                "Real-ESRGAN non è andato a buon fine.\n"
-                f"Command: {cmd}\n\n"
-                f"STDOUT:\n{completed.stdout}\n\n"
-                f"STDERR:\n{completed.stderr}"
-            )
+def get_upsampler(cfg:SRConfig) -> RealESRGANer:
+    global _model, _model_cfg
+    with _model_lock:
+        if _model is None or _model_cfg != cfg:
+            _model = _build_model(cfg)
+            _model_cfg = cfg
+    return _model
 
-        if not os.path.exists(out_path):
-            raise RuntimeError(
-                "Real-ESRGAN è terminato senza creare l'output atteso.\n"
-                f"Expected output: {out_path}\n"
-                f"Command: {cmd}\n\n"
-                f"STDOUT:\n{completed.stdout}\n\n"
-                f"STDERR:\n{completed.stderr}"
-            )
-        with open(out_path, "rb") as f:
-            return f.read()
+#--------------------------
+# API: bytes -> bytes
+#--------------------------
+
+def run_realesgan(input_bytes: bytes, cfg: Optional[SRConfig] = None) -> bytes:
+
+    if cfg is None:
+        cfg = SRConfig()
+
+    try:
+        img = Image.open(io.BytesIO(input_bytes)).convert("RGB")
+    except Exception as e:
+        raise RuntimeError("Input non è un'immagine valida (bytes non decodificabili).") from e
+
+    rgb=np.array(img, dtype=np.uint8)
+    bgr=cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    upsampler = get_upsampler(cfg)
+
+    try:
+        out_bgr, _ = upsampler.enhance(bgr, outscale=cfg.scale)
+    except RuntimeError as e:
+        # Tipico: OOM GPU. Suggerisci tile.
+        raise RuntimeError(
+            "Errore durante SR (possibile OOM GPU). "
+            "Prova a impostare SRConfig.tile=256 o 512."
+        ) from e
+    except Exception as e:
+        raise RuntimeError("Errore inatteso durante Real-ESRGAN enhance().") from e
+
+    # BGR -> RGB -> PNG bytes
+    out_rgb = cv2.cvtColor(out_bgr, cv2.COLOR_BGR2RGB)
+    out_img = Image.fromarray(out_rgb)
+
+    buf = io.BytesIO()
+    out_img.save(buf, format="PNG")
+    return buf.getvalue()
