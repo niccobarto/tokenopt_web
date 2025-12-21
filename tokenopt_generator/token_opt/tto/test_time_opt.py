@@ -16,6 +16,7 @@ import open_clip
 
 from tokenopt_generator.token_opt.titok.modeling.quantizer import DiagonalGaussianDistribution
 from tokenopt_generator.token_opt.titok.modeling.titok import TiTok
+from torch.cuda.amp import GradScaler
 
 
 @dataclass
@@ -115,7 +116,7 @@ class TestTimeOpt(nn.Module):
 
         opt_tokens.requires_grad_(True)
         opt = torch.optim.Adam(params=[opt_tokens], lr=self.config.lr)
-        scaler = torch.GradScaler(enabled=self.config.enable_amp)
+        scaler = GradScaler(enabled=self.config.enable_amp)
         ema = EMAModel(
             [opt_tokens],
             decay=self.config.ema_decay,
