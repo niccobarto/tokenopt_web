@@ -142,7 +142,7 @@ def _resolve_sr_cli_cmd() -> list[str]:
 
     return [
         "python",
-        "image_editor/services/super_resolution.py",
+        "tokenopt_generator/api/super_resolution.py",
         "-i",
         "{in_path}",
         "-o",
