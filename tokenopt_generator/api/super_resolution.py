@@ -29,7 +29,9 @@ def run_realesgan(input_bytes: bytes, sr_cli_cmd: list[str]) -> bytes:
         # Lancio la CLI e raccolgo stdout/stderr per debug
         completed = subprocess.run(cmd,
                                    capture_output=True,
-                                   text=True)
+                                   text=True,
+                                   cwd="/opt/realesrgan",
+                                   )
 
         if completed.returncode != 0:
             raise RuntimeError(
