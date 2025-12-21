@@ -75,6 +75,7 @@ async def generate_inpainting(
 
     job_id = str(uuid.uuid4())
     JOBS[job_id] = {"status": "QUEUED", "result": None, "error": None}
+    print("configs_bool:", configs_bool)
 
     th = threading.Thread(
         target=_run_job,

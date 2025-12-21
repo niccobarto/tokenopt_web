@@ -18,3 +18,8 @@ PyMatting==1.1.14
 flatbuffers==25.9.23
 coloredlogs==15.0.1
 humanfriendly==10.0
+
+realesrgan
+basicsr
+opencv-python-headless
+

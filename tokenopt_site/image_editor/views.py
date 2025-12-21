@@ -339,6 +339,6 @@ def superres_status(request, job_id: int):
         data["error"] = job.error_message or "Errore sconosciuto."
 
     if job.status == "COMPLETED" and job.superres_image:
-        data["output_url"] = job.superres_image.url
+        data["output_url"] = default_storage.url(job.superres_image)
 
     return JsonResponse(data)
