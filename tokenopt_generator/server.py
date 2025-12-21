@@ -154,11 +154,24 @@ def _load_sr_cli_cmd() -> list[str]:
     if not raw:
         raise RuntimeError(
             "TOKENOPT_SR_CLI_CMD non è impostata: specifica il comando Real-ESRGAN del pod."
-        )
+)
 
     # Se arriva una lista JSON la usiamo così com'è
     if raw.startswith("["):
-        return json.loads(raw)
+        try:
+            parsed=json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"TOKENOPT_SR_CLI_CMD non è JSON valido: {e}") from e
 
-    # Altrimenti spezzettiamo la stringa come in shell
-    return shlex.split(raw)
+        if not isinstance(parsed,list) or not all(isinstance(x,str) for x in parsed):
+            raise RuntimeError("TOKENOPT_SR_CLI_CMD JSON deve essere una lista di stringhe")
+        cmd=parsed
+    else:
+        cmd=shlex.split(raw)
+
+    joined=" ".join(cmd)
+    if "{in_path}" not in joined:
+        raise RuntimeError("TOKENOPT_SR_CLI_CMD deve contenere il placeholder {in_path}")
+    if "{out_path}" not in joined and "{out_dir}" not in joined:
+        raise RuntimeError("TOKENOPT_SR_CLI_CMD deve contenere il placeholder {out_path} o {out_dir}")
+    return cmd
