@@ -9,12 +9,10 @@ import base64
 import os
 
 import requests
-from tokenopt_site import settings
 from tokenopt_site.settings import TTO_JOBS_ROOT_RELATIVE,REMOVEBG_ROOT_RELATIVE,SUPERRES_ROOT_RELATIVE
 from .models import GenerationJob,SuperResolutionJob,RemoveBgJob
 from .services.generator import run_tto_job
 from tokenopt_generator.api.remove_background import remove_background
-from tokenopt_generator.api.super_resolution import run_realesgan
 
 RUNPOD_URL = os.getenv("TOKENOPT_RUNPOD_URL", "").strip()
 RUNPOD_TIMEOUT = int(os.getenv("TOKENOPT_RUNPOD_TIMEOUT", "600"))
@@ -91,37 +89,6 @@ def remove_background_task(job_id: int):
         job.save(update_fields=["status", "error_message"])
         return False
 
-@shared_task
-def run_super_resolution_task(job_id:int):
-    job=SuperResolutionJob.objects.get(id=job_id)
-    job.status="RUNNING"
-    job.save(update_fields=["status"])
-
-    try:
-        with job.input_image.open("rb") as f:
-            input_bytes=f.read()
-
-        # Esegui SR su RunPod o localmente
-        if RUNPOD_URL:
-            output_bytes = _super_resolution_runpod(input_bytes)
-        else:
-            sr_cli_cmd = getattr(settings, "SR_CLI_CMD", None)
-            if not sr_cli_cmd:
-                raise RuntimeError("SR_CLI_CMD mancante in settings.py.")
-            output_bytes = run_realesgan(input_bytes, sr_cli_cmd)
-        file_path=f"{SUPERRES_ROOT_RELATIVE}/job_{job.id}/outputs/output.png"
-        saved_path=default_storage.save(
-            file_path,
-            ContentFile(output_bytes),
-        )
-        job.superres_image=saved_path
-        job.status="COMPLETED"
-        job.save(update_fields=["status","superres_image"])
-    except Exception as e:
-        job.status = "FAILED"
-        job.error_message = str(e)
-        job.save()
-
 def _remove_background_runpod(image_bytes: bytes, model_selected: str) -> bytes:
     endpoint = f"{RUNPOD_URL.rstrip('/')}/remove-background"
 
@@ -137,6 +104,37 @@ def _remove_background_runpod(image_bytes: bytes, model_selected: str) -> bytes:
         raise RuntimeError("Risposta RunPod remove-background priva del campo 'data'")
 
     return base64.b64decode(result["data"])
+
+@shared_task
+def run_super_resolution_task(job_id:int):
+    job=SuperResolutionJob.objects.get(id=job_id)
+    job.status="RUNNING"
+    job.save(update_fields=["status"])
+
+    try:
+        # Leggo l'immagine di input salvata
+        with job.input_image.open("rb") as f:
+            input_bytes=f.read()
+
+        # Richiamo sempre il servizio remoto di super-resolution
+        if not RUNPOD_URL:
+            raise RuntimeError("TOKENOPT_RUNPOD_URL non configurato per la super-resolution.")
+
+        output_bytes = _super_resolution_runpod(input_bytes)
+
+        file_path=f"{SUPERRES_ROOT_RELATIVE}/job_{job.id}/outputs/output.png"
+        saved_path = default_storage.save(file_path, ContentFile(output_bytes))
+
+        job.superres_image=saved_path
+        job.status="COMPLETED"
+        job.save(update_fields=["status","superres_image"])
+    except Exception as e:
+        job.status = "FAILED"
+        job.error_message = str(e)
+        job.save(update_fields=["status", "error_message"])
+        return False
+
+    return True
 
 
 def _super_resolution_runpod(image_bytes: bytes) -> bytes:

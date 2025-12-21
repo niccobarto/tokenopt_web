@@ -176,10 +176,3 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Europe/Rome"
 
-# L’output verrà scritto come file dentro {out_dir}.
-SR_CLI_CMD = [
-    "python", "image_editor/services/super_resolution.py",
-    "-i", "{in_path}",
-    "-o", "{out_dir}",
-    "-n", "realesrgan-x4plus",   # oppure realesrgan-x2plus
-]

@@ -1,16 +1,10 @@
 import base64
-import uuid
-
-from PIL.Image import Image,open
-from django.core.files.base import ContentFile
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
-from django.conf import settings
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 
-from tokenopt_site.settings import ALLOWED_HOSTS
-from .models import GenerationJob,RemoveBgJob,UserUpload,SuperResolutionJob
+from .models import GenerationJob,RemoveBgJob
 from .services.generator import run_tto_job
 from .tasks import run_generation_task,remove_background_task,run_super_resolution_task
 
