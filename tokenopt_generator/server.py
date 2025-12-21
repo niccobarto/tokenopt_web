@@ -3,8 +3,6 @@ import json
 import threading
 import os
 import shlex
-import tempfile
-from pathlib import Path
 import uuid
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -118,51 +116,16 @@ async def run_remove_background(
         }
     )
 
-
-def _resolve_sr_cli_cmd() -> list[str]:
-    """
-    Recupera il comando CLI per Real-ESRGAN dal valore d'ambiente ``TOKENOPT_SR_CLI_CMD``.
-
-    Accetta sia JSON (lista) che una stringa space-separated. Se non valorizzato,
-    usa un default compatibile con l'immagine RunPod.
-    """
-
-    env_value = os.getenv("TOKENOPT_SR_CLI_CMD", "").strip()
-    if env_value:
-        try:
-            parsed = json.loads(env_value)
-            if isinstance(parsed, list) and parsed:
-                return [str(x) for x in parsed]
-        except json.JSONDecodeError:
-            pass
-
-        split_cmd = shlex.split(env_value)
-        if split_cmd:
-            return split_cmd
-
-    return [
-        "python",
-        "tokenopt_generator/api/super_resolution.py",
-        "-i",
-        "{in_path}",
-        "-o",
-        "{out_dir}",
-        "-n",
-        "realesrgan-x4plus",
-    ]
-
-
 @app.post("/super-resolution")
 async def run_super_resolution(
     input_image: UploadFile = File(...),
 ):
     """Esegue Real-ESRGAN nel pod GPU e restituisce l'immagine upscalata in base64."""
     from tokenopt_generator.api import super_resolution
+    sr_cli_cmd = _load_sr_cli_cmd()
     image_bytes = await input_image.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="input_image vuoto")
-
-    sr_cli_cmd = _resolve_sr_cli_cmd()
 
     output_bytes = super_resolution.run_realesgan(image_bytes, sr_cli_cmd=sr_cli_cmd)
     b64_data = base64.b64encode(output_bytes).decode("utf-8")
@@ -179,3 +142,23 @@ async def run_super_resolution(
 
 
 __all__ = ["app"]
+
+def _load_sr_cli_cmd() -> list[str]:
+    """Legge il comando Real-ESRGAN dall'env.
+
+    Accetta una lista JSON (es. ["python", "inference.py", "-i", "{in_path}", "-o", "{out_dir}"])
+    oppure una stringa stile shell. Manteniamo la funzione semplice e commentata.
+    """
+
+    raw = os.getenv("TOKENOPT_SR_CLI_CMD", "").strip()
+    if not raw:
+        raise RuntimeError(
+            "TOKENOPT_SR_CLI_CMD non è impostata: specifica il comando Real-ESRGAN del pod."
+        )
+
+    # Se arriva una lista JSON la usiamo così com'è
+    if raw.startswith("["):
+        return json.loads(raw)
+
+    # Altrimenti spezzettiamo la stringa come in shell
+    return shlex.split(raw)
