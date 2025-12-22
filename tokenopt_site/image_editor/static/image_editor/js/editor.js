@@ -357,7 +357,6 @@ function maskCanvasToDataURL() {
 }
 
 
-
 // ---------- DOWNLOAD ZIP (original + mask) ----------
 
 // helper: aggiunge un ImageData come PNG (bianco/nero) allo zip
@@ -890,6 +889,15 @@ async function startSuperResolution(imageUrl) {
     return data.job_id;
 }
 
+function setSrStatus(el, status, text) {
+    if (!el) return;
+    el.classList.remove("running", "completed", "failed");
+    if (status === "RUNNING") el.classList.add("running");
+    if (status === "COMPLETED") el.classList.add("completed");
+    if (status === "FAILED") el.classList.add("failed");
+    el.textContent = text;
+}
+
 function startSuperResolutionPolling(jobId, statusDiv, imgElement) {
     if (SUPERRES_POLLING_INTERVALS.has(jobId)) {
         clearInterval(SUPERRES_POLLING_INTERVALS.get(jobId));
@@ -902,24 +910,24 @@ function startSuperResolutionPolling(jobId, statusDiv, imgElement) {
             .then(r => r.json())
             .then(data => {
                 if (data.status === "PENDING") {
-                    statusDiv.textContent = "Super-resolution: in attesa...";
+                    setSrStatus(statusDiv, null, "Super-resolution: in attesa...");
                     return;
                 }
                 if (data.status === "RUNNING") {
-                    statusDiv.textContent = "Super-resolution: in corso...";
+                    setSrStatus(statusDiv, "RUNNING", "Super-resolution: in corso...");
                     return;
                 }
                 if (data.status === "FAILED") {
-                    statusDiv.textContent = `Super-resolution fallita: ${data.error ?? ""}`;
+                    setSrStatus(statusDiv, "FAILED", `Super-resolution fallita: ${data.error ?? ""}`);
                     clearInterval(intervalId);
                     SUPERRES_POLLING_INTERVALS.delete(jobId);
                     return;
                 }
                 if (data.status === "COMPLETED") {
-                    statusDiv.textContent = "Super-resolution completata.";
+                    setSrStatus(statusDiv, "COMPLETED", "Super-resolution completata.");
 
                     if (data.output_url && imgElement) {
-                        imgElement.src = `${data.output_url}?t=${Date.now()}`;
+                        imgElement.src = data.output_url
                     }
 
                     clearInterval(intervalId);
