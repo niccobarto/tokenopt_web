@@ -50,22 +50,25 @@ def run_tto_job(job: GenerationJob) -> list[str]:
             mask_bytes=mask_bytes,
             prompt=job.prompt,
             num_generations=job.num_generations,
+            configs=job.configs,
             job=job,
             dummy=DUMMY_GENERATION
         )
     return generated_urls
+
 
 def _generate_inpainting_local(
     input_image_bytes: bytes,
     mask_bytes: bytes,
     prompt: str,
     num_generations: int,
+    configs:dict[str,bool],
     job: GenerationJob,
     dummy:bool,
 )-> List[str]:
     if not dummy:
         from tokenopt_generator.api import tto_web_generator
-        results=tto_web_generator.generate_inpainting_bytes(input_image_bytes,mask_bytes,prompt,num_generations)
+        results=tto_web_generator.generate_inpainting_bytes(input_image_bytes,mask_bytes,prompt,num_generations,configs)
         return _save_image_bytes(results,job.id)
     else:
         return _generate_inpainting_dummy(
@@ -73,6 +76,7 @@ def _generate_inpainting_local(
             input_mask_bytes=mask_bytes,
             prompt=prompt,
             num_generations=num_generations,
+            configs=configs,
             output_dir= Path(f"{TTO_JOBS_ROOT_RELATIVE}/job_{job.id}/outputs"),
         )
 
@@ -142,6 +146,7 @@ def _generate_inpainting_dummy(
         input_mask_bytes: bytes,
         prompt: str,
         num_generations: int,
+        configs: dict[str, bool],
         output_dir: Path,
 ) -> List[str]:
     """
@@ -163,8 +168,12 @@ def _generate_inpainting_dummy(
     except Exception:
         width, height = 256, 256
 
+    num_configs=0
+    for k,v in configs.items():
+        if v:
+            num_configs += 1
     # Genera e salva tramite storage
-    for idx in range(num_generations):
+    for idx in range(num_configs):
         img = Image.new("RGB", (width, height), color=(200, 100 + 20 * idx, 150))
         draw = ImageDraw.Draw(img)
         text = f"gen_{idx+1:02d}\n{prompt[:32]}"
