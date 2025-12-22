@@ -138,9 +138,9 @@ def generate_inpainting(
 
         multi_objective = MultiObjective(objectives, config.objective_weights)
         print("Start creation of TTO with config:", name)
-        tto = TestTimeOpt(config.tto_config, multi_objective).to(device)
+        tto = TestTimeOpt(config.tto_config, multi_objective)
         print("Starting generation with config:", name)
-        result_tns = tto(seed=input_masked)
+        result_tns = tto(seed=input_masked).to(device)
         print("Generation completed.")
         output_tns=input_tns * mask_tns + result_tns * (1-mask_tns)
         result_img = tensor_to_image(result_tns)
