@@ -125,7 +125,7 @@ def _generate_inpainting_runpod(
         if payload["status"]=="FAILED":
             raise RuntimeError(payload.get("error"))
 
-        time.sleep(2)
+        time.sleep(10)
 
     return _save_image_bytes(results,job.id)
 
