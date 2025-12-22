@@ -118,25 +118,25 @@ def generate_inpainting(
         objectives = []
         for obj_type, weight in zip(objective_types, config.objective_weights):
             if obj_type == ObjectiveType.ReconstructionObjective:
-                recon_obj = ReconstructionObjective(input_masked, mask_tns).to(device)
+                recon_obj = ReconstructionObjective(input_masked, mask_tns)
                 objectives.append(recon_obj)
             elif obj_type == ObjectiveType.ComposedCLIP:  # se e' un objective di ComposedCLIP e siamo in inpainting
                 base_clip_obj = CLIPObjective(
                     prompt=prompt,
                     cfg_scale=config.cfg_scale,
                     num_augmentations=config.num_augmentations
-                ) .to(device) # creo la CLIPObjective di base
+                ) # creo la CLIPObjective di base
                 composed_clip_obj = ComposedCLIP(
                     base_clip_obj=base_clip_obj,
                     orig_img=input_tns,
                     mask_bin=mask_tns,
                     outside_grad=0.0
-                ).to(device)  # creo la ComposedCLIP
+                )  # creo la ComposedCLIP
                 objectives.append(composed_clip_obj)
             else:
                 raise ValueError(f"Objective type {obj_type} not recognized")
 
-        multi_objective = MultiObjective(objectives, config.objective_weights).to(device)
+        multi_objective = MultiObjective(objectives, config.objective_weights)
         tto = TestTimeOpt(config.tto_config, multi_objective).to(device)
         result_tns = tto(seed=input_masked)
         output_tns=input_tns * mask_tns + result_tns * (1-mask_tns)
