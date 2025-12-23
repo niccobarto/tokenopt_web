@@ -146,7 +146,7 @@ def generate_inpainting(
             reset_period=config.reset_period
         )
         tto.to(device)
-        result_tns = tto(seed=input_masked,)
+        result_tns = tto(seed=input_masked,token_reset_callback=token_reset)
         print("Generation completed.")
         output_tns=input_tns * mask_tns + result_tns * (1-mask_tns)
         result_img = tensor_to_image(result_tns)
