@@ -128,6 +128,19 @@ def add_conf(name, tto_params, cfg_scale, num_aug, weights,
 
 #endregion
 
+class TokenResetter:
+    def __init__(self, titok, masked_img, mask, reset_period=5):
+        self.titok = titok
+        self.masked_img = masked_img
+        self.mask = mask
+        self.reset_period = reset_period
+
+    @torch.no_grad()
+    def __call__(self, info):
+        if info.i % self.reset_period != 0:
+            return
+        dec_reset = (1. - self.mask) * info.img + self.masked_img
+        return self.titok.encoder(dec_reset, self.titok.latent_tokens)
 
 #region Utility per caricamento immagini/maschere e conversione tensore<->immagine
 def image_to_tensor(image_path: Path, size: int = 256, device = None) -> Tensor:

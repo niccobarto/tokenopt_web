@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import List, cast
 from PIL import Image,ImageDraw
 from torch import cuda
 from tokenopt_generator.inpaiting_utils.inpainting import add_conf, ObjectiveType, image_to_tensor, \
-    tensor_to_image, mask_to_tensor, ComposedCLIP, ReconstructionObjective
+    tensor_to_image, mask_to_tensor, ComposedCLIP, ReconstructionObjective,TokenResetter
 from tokenopt_generator.token_opt.tto.test_time_opt import TestTimeOpt, CLIPObjective, MultiObjective
 import tempfile
 import shutil
@@ -30,7 +30,7 @@ configs_implemented = [
         num_aug=8,
         weights=[1.0, 1.0],
         enable_token_reset=True,
-        reset_period=10,
+        reset_period=15,
         objective_types=[ObjectiveType.ReconstructionObjective,
                          ObjectiveType.ComposedCLIP]
     ),
@@ -51,7 +51,7 @@ configs_implemented = [
         num_aug=8,
         weights=[1.5, 0.8],
         enable_token_reset=True,
-        reset_period=10,
+        reset_period=15,
         objective_types=[ObjectiveType.ReconstructionObjective,
                          ObjectiveType.ComposedCLIP]
     ),
@@ -72,27 +72,27 @@ configs_implemented = [
         num_aug=8,
         weights=[1],
         enable_token_reset=True,
-        reset_period=10,
+        reset_period=15,
         objective_types=[ObjectiveType.ComposedCLIP]
     ),
     add_conf(
-        #name="C9CLIPONLYSTRONG_RESET",
+        #name="BALANCED_RESET",
         name="config4",
         tto_params=dict(
             num_iter=351,
             ema_decay=0.98,
             lr=1e-1,
             enable_amp=True,
-            reg_weight=2.0e-2,
-            token_noise=2e-4,
+            reg_weight=0.02,
+            token_noise=0.005,
             reg_type="seed",
 
         ),
-        cfg_scale=3,
-        num_aug=10,
+        cfg_scale=1.5,
+        num_aug=8,
         weights=[1],
         enable_token_reset=True,
-        reset_period=10,
+        reset_period=15,
         objective_types=[ObjectiveType.ComposedCLIP]
     )
 ]
@@ -135,13 +135,18 @@ def generate_inpainting(
                 objectives.append(composed_clip_obj)
             else:
                 raise ValueError(f"Objective type {obj_type} not recognized")
-
         multi_objective = MultiObjective(objectives, config.objective_weights)
         print("Start creation of TTO with config:", name)
         tto = TestTimeOpt(config.tto_config, multi_objective)
         print("Starting generation with config:", name)
+        token_reset = TokenResetter(
+            titok=tto.titok,
+            masked_img=input_masked,
+            mask=mask_tns,
+            reset_period=config.reset_period
+        )
         tto.to(device)
-        result_tns = tto(seed=input_masked)
+        result_tns = tto(seed=input_masked,)
         print("Generation completed.")
         output_tns=input_tns * mask_tns + result_tns * (1-mask_tns)
         result_img = tensor_to_image(result_tns)
