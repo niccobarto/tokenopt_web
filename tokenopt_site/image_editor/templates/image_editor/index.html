@@ -17,12 +17,10 @@
                 <div class="logo-circle">IN</div>
                 <div class="logo-text">
                     <span class="logo-title">Inpainter</span>
-                    <span class="logo-subtitle">Mask Editor</span>
                 </div>
             </div>
             <nav class="main-nav">
                 <a href="#" class="nav-link">Home</a>
-                <a href="#" class="nav-link">Guida</a>
                 <a href="https://github.com/niccobarto/tokenopt_web" class="nav-link">Documentazione</a>
             </nav>
         </div>
@@ -35,33 +33,49 @@
             <div class="hero-text">
                 <h1>Modifica le tue immagini di oggetti</h1>
                 <p class="hero-lead">
-                    Maschera interi oggetti o parti nell'immagine e scrivi cosa desidereresti al suo posto. Ti verranno
-                    fornite quante varianti desideri
+                    Maschera interi oggetti o parti nell'immagine e scrivi cosa desidereresti al suo posto.
                 </p>
 
-                <div class="hero-steps">
-                    <div class="hero-step">
-                        <span class="hero-step-number">1</span>
-                        <div>
-                            <h3>Carica un'immagine</h3>
-                            <p>Scegli l'immagine che preferisci dalla tua galleria.</p>
+                <details class="accordion" open>
+                    <summary class="accordion-summary">
+                        <span class="accordion-title">Istruzioni</span>
+                    </summary>
+
+                    <div class="accordion-content">
+                        <div class="hero-steps">
+                            <div class="hero-step">
+                                <span class="hero-step-number">1</span>
+                                <div>
+                                    <h3>Carica un'immagine</h3>
+                                    <p>Scegli l'immagine che preferisci dalla tua galleria.</p>
+                                </div>
+                            </div>
+                            <div class="hero-step">
+                                <span class="hero-step-number">2</span>
+                                <div>
+                                    <h3>Scegli come cambiare l'oggetto</h3>
+                                    <p>Disegna una maschera sopra l'oggetto e scrivi con cosa vorresti sostituirla o
+                                        rimuovi lo sfondo.</p>
+                                </div>
+                            </div>
+                            <div class="hero-step">
+                                <span class="hero-step-number">3</span>
+                                <div>
+                                    <h3>Genera!</h3>
+                                    <p>Decidi quali configurazioni usare per la generazione e ottieni le tue nuove
+                                        immagini.</p>
+                                </div>
+                            </div>
+                            <div class="hero-step">
+                                <span class="hero-step-number">4</span>
+                                <div>
+                                    <h3>Aumenta la qualità dell'immagine</h3>
+                                    <p>Scegli tra le varianti che preferisci e aumenta la loro risoluzione!</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="hero-step">
-                        <span class="hero-step-number">2</span>
-                        <div>
-                            <h3>Scegli come cambiare l'oggetto</h3>
-                            <p>Disegna una maschera sopra l'oggetto e scrivi con cosa vorresti sostituirla.</p>
-                        </div>
-                    </div>
-                    <div class="hero-step">
-                        <span class="hero-step-number">3</span>
-                        <div>
-                            <h3>Esporta in un click</h3>
-                            <p>Scegli la variante che preferisci tra i risultati e scaricala!</p>
-                        </div>
-                    </div>
-                </div>
+                </details>
             </div>
             <form
                     id="generationForm"
@@ -76,17 +90,46 @@
                 <div class="controls-column">
                     <div id="controls">
                         <h4>Editing immagine</h4>
-                        <div class="row buttons">
-                            <button class="low-margin" type="button" id="undo">Undo</button>
-                            <button class="low-margin" type="button" id="redo">Redo</button>
-                        </div>
+                        <div class="row tool-row">
+                            <div class="row-border-rounded">
+                                <button class="icon-btn low-margin" type="button" id="undo" title="Undo"
+                                        aria-label="Undo">
+                                    <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <!-- freccia curva SINISTRA (undo) -->
+                                        <path d="M9 14l-4-4 4-4"></path>
+                                        <path d="M5 10h9a5 5 0 1 1 0 10h-2"></path>
+                                    </svg>
+                                </button>
 
-                        <div class="row">
-                            <span>Strumento: </span>
-                            <input id="penTool" type="radio" name="toolRadio" value="pen" checked/>
-                            <label for="penTool">Penna</label>
-                            <input id="eraserTool" type="radio" name="toolRadio" value="eraser"/>
-                            <label for="eraserTool">Gomma</label>
+                                <button class="icon-btn low-margin" type="button" id="redo" title="Redo"
+                                        aria-label="Redo">
+                                    <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <!-- freccia curva DESTRA (redo) -->
+                                        <path d="M15 6l4 4-4 4"></path>
+                                        <path d="M19 10H10a5 5 0 1 0 0 10h2"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="row-border-rounded">
+                                <input id="penTool" type="radio" name="toolRadio" value="pen" checked/>
+                                <label for="penTool" class="tool-chip" title="Penna" aria-label="Penna">
+                                    <!-- ICONA PENNA (SVG) -->
+                                    <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M3 21l3.5-1 12-12-2.5-2.5-12 12L3 21z"></path>
+                                        <path d="M14 4l2.5 2.5"></path>
+                                    </svg>
+                                </label>
+
+                                <input id="eraserTool" type="radio" name="toolRadio" value="eraser"/>
+                                <label for="eraserTool" class="tool-chip" title="Gomma" aria-label="Gomma">
+                                    <!-- ICONA GOMMA (SVG) -->
+                                    <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M16.5 3.5l4 4L9 19H5l-2-2 13.5-13.5z"></path>
+                                        <path d="M9 19h10"></path>
+                                    </svg>
+                                </label>
+                            </div>
+
                         </div>
 
                         <div class="row">
@@ -104,20 +147,32 @@
                         <div class="row">
                             <button type="button" id="clear">Pulisci</button>
                         </div>
-
+                        <hr>
                         <div class="row distance space-between">
                             <div>
-                                <label class="label" for="rembgModel">Modello rimozione sfondo:</label>
-                                <div class="row space-between">
-                                    <select id="rembgModel" name="rembg_model" class="select">
-                                        <option value="u2net" selected>U2NET</option>
-                                        <option value="sam">SAM</option>
-                                        <option value="isnet-general-use">ISNET</option>
-                                        <option value="birefnet-general">BIREFNET</option>
-                                    </select>
-                                    <button class="special-button" type="button" id="removeBackground">Remove background
+                                <label class="label" for="rembgModel">Modello rimozione sfondo</label>
+
+                                <div class="rembg-row">
+                                    <div class="select-wrap">
+                                        <select id="rembgModel" name="rembg_model" class="select">
+                                            <option value="u2net" selected>U2NET</option>
+                                            <option value="sam">SAM</option>
+                                            <option value="isnet-general-use">ISNET</option>
+                                            <option value="birefnet-general">BIREFNET</option>
+                                        </select>
+
+                                        <!-- chevron -->
+                                        <svg class="select-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M6 9l6 6 6-6"></path>
+                                        </svg>
+                                    </div>
+
+                                    <button type="button" id="removeBackground" class="rembg-btn">
+                                        Rimuovi sfondo
                                     </button>
                                 </div>
+
+                                <small id="rembgHint" class="rembg-hint"></small>
                             </div>
                         </div>
 
@@ -141,34 +196,31 @@
                                 ></textarea>
                             {% endif %}
                         </div>
-                        <div class="row generations-row" style="display:none;">
-                            <label for="numGenerations">Numero di varianti:</label>
-                            <input
-                                    id="numGenerations"
-                                    type="number"
-                                    min="1"
-                                    max="4"
-                                    value="1"
-                                    aria-label="Numero di generazioni"
-                            />
-                        </div>
-                        <div id="configs-row">
-                            <span>
-                                <label for="config1">Conf. 1</label>
-                                <input type="checkbox" id="config1" name="config1">
-                            </span>
-                            <span>
-                                <label for="config2">Conf. 2</label>
-                                <input type="checkbox" id="config2" name="config2">
-                            </span>
-                            <span>
-                                <label for="config3">Conf. 3</label>
-                                <input type="checkbox" id="config3" name="config3">
-                            </span>
-                            <span>
-                                <label for="config4">Conf. 4</label>
-                                <input type="checkbox" id="config4" name="config4">
-                            </span>
+                        <hr>
+                        <div class="row-config-text">
+                            <span>Scegli le configurazioni:</span>
+                            <div id="configs-row" class="configs-row">
+
+                                <label class="config-card" for="config1">
+                                    <input type="checkbox" id="config1" name="config1" class="config-checkbox">
+                                    <span class="config-title">C1</span>
+                                </label>
+
+                                <label class="config-card" for="config2">
+                                    <input type="checkbox" id="config2" name="config2" class="config-checkbox">
+                                    <span class="config-title">C2</span>
+                                </label>
+
+                                <label class="config-card" for="config3">
+                                    <input type="checkbox" id="config3" name="config3" class="config-checkbox">
+                                    <span class="config-title">C3</span>
+                                </label>
+
+                                <label class="config-card" for="config4">
+                                    <input type="checkbox" id="config4" name="config4" class="config-checkbox">
+                                    <span class="config-title">BALANCED</span>
+                                </label>
+                            </div>
                         </div>
 
                     </div>

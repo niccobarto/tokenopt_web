@@ -4,6 +4,8 @@ import threading
 import os
 import shlex
 import uuid
+
+from django.http import HttpResponse
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -91,6 +93,8 @@ def job_status(job_id:str):
     job=JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job non trovato")
+    if job["STATUS"]!="DONE":
+        return HttpResponse(status_code=101, detail="Job non completato")
     return JSONResponse(content=job)
 
 @app.post("/remove-background")

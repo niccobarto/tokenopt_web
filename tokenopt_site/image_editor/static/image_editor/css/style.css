@@ -132,7 +132,8 @@ h4{
 }
 
 .hero {
-    max-width: 1100px;
+    width: 885px;
+    max-width: 100%;
     border: 1px solid black;
     border-radius: 30px;
     margin: 0 auto;
@@ -195,6 +196,87 @@ h4{
     align-items: flex-start;
 }
 
+
+/* ==========================
+   ACCORDION (details/summary)
+   ========================== */
+
+.accordion {
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+}
+
+.accordion-summary {
+    list-style: none; /* per alcuni browser */
+    cursor: pointer;
+
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+
+    padding: 12px 14px;
+    user-select: none;
+}
+
+/* Nasconde marker di default (Safari/Chrome) */
+.accordion-summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Titoli */
+.accordion-title {
+    font-weight: 800;
+    color: #444d5d;
+    font-size: 14px;
+}
+
+.accordion-subtitle {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+/* Triangolino custom a destra */
+.accordion-summary::after {
+    content: "";
+    width: 0;
+    height: 0;
+    border-left: 6px solid #e5e7eb;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    opacity: 0.9;
+    transform: rotate(0deg);
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* Quando aperto ruota verso il basso */
+.accordion[open] .accordion-summary::after {
+    transform: rotate(90deg);
+    opacity: 1;
+}
+
+/* Contenuto interno */
+.accordion-content {
+    padding: 10px 14px 14px;
+    border-top: 1px solid rgba(148, 163, 184, 0.20);
+}
+
+/* Hover */
+.accordion-summary:hover {
+    background: #1e293b;
+
+    .accordion-title{
+        color: white;
+    }
+}
+
+/* Focus accessibile */
+.accordion-summary:focus-visible {
+    outline: 3px solid rgba(56, 189, 248, 0.35);
+    outline-offset: 2px;
+}
 .hero-step-number {
     min-width: 24px;
     height: 24px;
@@ -298,9 +380,6 @@ h4{
     opacity: 0.8;
 }
 
-/* =========================================================
-   TUO CSS ORIGINALE PER L'EDITOR (copiato quasi identico)
-   ========================================================= */
 
 /* layout principale dell'editor */
 .canvas-section {
@@ -430,11 +509,11 @@ h4{
 
 }
 #controls .low-margin{
-    margin-right:5px;
+    margin:5px;
 }
 #controls button {
     background: linear-gradient(180deg, #3b82f6, #1d4ed8);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.45);
+    box-shadow: none;
     color: #fff;
     border: none;
     padding: 7px 12px;
@@ -447,17 +526,15 @@ h4{
 
 #controls button#clear {
     background: linear-gradient(180deg, #ef4444, #b91c1c);
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.55);
 }
 
 #controls button#removeBackground{
     background: linear-gradient(180deg, #10b981, #047857);
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.45);
 }
 
 #controls button:hover {
     transform: translateY(1px);
-    box-shadow: none;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
 }
 
 #controls button:active {
@@ -475,10 +552,146 @@ h4{
     color: white;
 }
 
-#controls label[for='penTool'], #controls label[for='eraserTool'], #controls label[for="textPrompt"], #controls label[for="numGenerations"],#controls label[for="rembgModel"], #controls span{
+#controls, #controls label[for='eraserTool'], #controls label[for="textPrompt"], #controls label[for="numGenerations"],#controls label[for="rembgModel"], #controls span{
     color: white;
 }
 
+
+/* ==========================
+   ICON BUTTONS (undo/redo)
+   ========================== */
+
+#controls button.icon-btn {
+    width: 40px;
+    height: 36px;
+    padding: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: #1e293b;
+
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.18);
+    transition: transform 0.12s ease,
+                background 0.12s ease,
+                border-color 0.12s ease,
+                box-shadow 0.12s ease;
+}
+
+/* disattivo il tuo gradient blu SOLO per questi bottoni */
+#controls button.icon-btn {
+    background-image: none;
+}
+
+#controls button.icon-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(56, 189, 248, 0.55);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.22);
+}
+
+.row-border-rounded{
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 12px;
+    display: flex;
+    align-content: center;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* SVG dentro bottone */
+.btn-icon {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: #e5e7eb;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.95;
+}
+
+/* focus accessibile */
+#controls button.icon-btn:focus-visible {
+    outline: 3px solid rgba(56, 189, 248, 0.35);
+    outline-offset: 2px;
+}
+
+
+/* ==========================
+   TOOL ICONS (pen/eraser)
+   ========================== */
+
+#controls .row.tool-row {
+  gap: 10px;
+}
+
+/* nascondo il radio classico (ma resta accessibile) */
+#controls input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* contenitore icona cliccabile */
+.tool-chip {
+    width: 40px;
+    height: 36px;
+    margin: 5px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: #1e293b;
+    cursor: pointer;
+
+    transition: transform 0.12s ease,
+                background 0.12s ease,
+                border-color 0.12s ease,
+                box-shadow 0.12s ease;
+}
+
+.tool-chip:hover {
+    transform: translateY(-1px);
+    border-color: rgba(56, 189, 248, 0.55);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.18);
+}
+
+/* SVG */
+.tool-icon {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: #e5e7eb;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.95;
+}
+
+/* stato selezionato: radio + label immediatamente dopo */
+#penTool:checked + label.tool-chip,
+#eraserTool:checked + label.tool-chip {
+    background: linear-gradient(135deg, rgba(56,189,248,0.95), rgba(34,197,94,0.85));
+    border-color: rgba(56, 189, 248, 0.8);
+    box-shadow: 0 14px 28px rgba(56, 189, 248, 0.14);
+}
+
+#penTool:checked + label.tool-chip .tool-icon,
+#eraserTool:checked + label.tool-chip .tool-icon {
+    stroke: #07101f;
+}
+
+/* focus da tastiera */
+#penTool:focus-visible + label.tool-chip,
+#eraserTool:focus-visible + label.tool-chip {
+    outline: 3px solid rgba(56, 189, 248, 0.35);
+    outline-offset: 2px;
+}
 
 #controls input[type='radio'] {
     width: 16px;
@@ -487,6 +700,135 @@ h4{
     margin-left:10px;
 
 }
+
+/* ==========================
+   REMBG model selector
+   ========================== */
+
+.rembg-row{
+    margin-top: 4px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+}
+
+.select-wrap{
+    position: relative;
+    width: 100%;
+}
+
+.select{
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    padding: 10px 36px 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+
+    background: rgba(255, 255, 255, 0.12);
+    color: #e5e7eb;
+
+    font-size: 14px;
+    font-weight: 700;
+
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.select option {
+    color: #111827;       /* nero */
+    background: #ffffff;  /* bianco */
+}
+
+.select:hover{
+    border-color: rgba(56, 189, 248, 0.55);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.select:focus{
+    border-color: rgba(56, 189, 248, 0.85);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+}
+
+.select-chevron{
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    stroke: rgba(229, 231, 235, 0.85);
+    stroke-width: 2;
+    fill: none;
+    pointer-events: none;
+}
+
+.rembg-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 10px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+
+    background: rgba(255, 255, 255, 0.10);
+    color: #e5e7eb;
+    font-weight: 800;
+    cursor: pointer;
+
+    transition: transform 0.12s ease,
+                border-color 0.12s ease,
+                box-shadow 0.12s ease,
+                background 0.12s ease;
+}
+
+.rembg-btn:hover{
+    transform: translateY(-1px);
+    border-color: rgba(34, 197, 94, 0.65);
+    background: rgba(16, 185, 129, 0.14);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.22);
+}
+
+.rembg-btn:active{
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.rembg-hint{
+    display: block;
+    margin-top: 6px;
+    color: rgba(148, 163, 184, 0.95);
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+/* icona bottone (riuso lo stile già creato per undo/redo se vuoi) */
+.rembg-btn .btn-icon{
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: #e5e7eb;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Mobile: bottone sotto al select */
+@media (max-width: 520px){
+    .rembg-row{
+        grid-template-columns: 1fr;
+    }
+    .rembg-btn{
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 
 /* ===== INPUT FILE ===== */
 .custom-fie-upload{
@@ -616,25 +958,105 @@ h4{
     margin-right: 8px;
 }
 
-#configs-row {
-    margin-top:10px;
+/* ==========================
+   CONFIG SELECTOR (cards)
+   ========================== */
+
+.row-config-text{
+    margin-top: 10px;
     display: flex;
-    justify-content: space-between;
-    flex-wrap: nowrap;
-    gap:5px;
-}
-#configs-row span{
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 5px;
-    padding:2px;
-    display: flex;
-    gap:3px;
     flex-direction: column;
-    background-color: #1e293b;
+}
+
+.configs-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* Card cliccabile */
+.config-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    padding: 10px 12px;
+    border-radius: 12px;
+
+    cursor: pointer;
+    user-select: none;
+
+    background: rgba(15, 23, 42, 0.35);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+
+    transition: transform 0.12s ease,
+                background 0.12s ease,
+                border-color 0.12s ease,
+                box-shadow 0.12s ease;
+}
+
+.config-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(56, 189, 248, 0.55);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+}
+
+.config-title {
+    color: #e5e7eb;
+    font-weight: 800;
+    font-size: 14px;
+}
+
+.config-subtitle {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+/* Nascondo la checkbox reale */
+.config-checkbox {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Stato selezionato: cambia stile dell'intera card */
+.config-checkbox:checked + .config-title {
+    color: #07101f;
+}
+
+.config-checkbox:checked ~ .config-subtitle {
+    color: rgba(7, 16, 31, 0.72);
+}
+
+.config-checkbox:checked ~ .config-subtitle,
+.config-checkbox:checked + .config-title {
+    /* solo testo, background lo gestiamo sotto con :has() se supportato */
+}
+
+/* Metodo A (MODERNO): usa :has() per colorare la card quando contiene un input checked */
+.config-card:has(.config-checkbox:checked) {
+    background: linear-gradient(135deg, rgba(56,189,248,0.95), rgba(7, 16, 31, 0.72));
+    border-color: rgba(56, 189, 248, 0.75);
+    box-shadow: 0 14px 34px rgba(56, 189, 248, 0.12);
+}
+
+/* Focus accessibile da tastiera */
+.config-card:has(.config-checkbox:focus-visible) {
+    outline: 3px solid rgba(56, 189, 248, 0.35);
+    outline-offset: 2px;
+}
+
+/* Responsive: su mobile una colonna */
+@media (max-width: 520px) {
+    .configs-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Label */
-.text-prompt-row label {
+.text-prompt-row label,.row-config-text span {
     font-size: 14px;
     font-weight: 600;
     color: #111827;

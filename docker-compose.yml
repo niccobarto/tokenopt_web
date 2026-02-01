@@ -1,61 +1,111 @@
+# Definizione dei servizi che compongono l'applicazione
 services:
+
+  # ============================
+  # Servizio Redis
+  # ============================
+
+  # Nome del servizio (diventa anche hostname interno: "redis")
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    # Healthcheck per verificare che Redis sia realmente pronto
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
 
+
+  # ============================
+  # Servizio Web (Django)
+  # ============================
+
+  # Container che esegue il server Django
   web:
+    # Carica variabili d'ambiente dal file .env sull'host
     env_file:
       - .env
     image: tokenopt:dev
     build:
       context: .
+      # Build argument passato al Dockerfile
       args:
         APP_ENV: dev
+    # Directory di lavoro all'interno del container
     working_dir: /app/tokenopt_site
+    # Comando eseguito all'avvio del container
     command: python manage.py runserver 0.0.0.0:8000
+    # Esposizione della porta 8000 del container sull'host
     ports:
       - "8000:8000"
+    # Variabili d'ambiente disponibili a runtime nel container
     environment:
+      # Flag applicativo: disabilita uso GPU locale
       TOKENOPT_ENABLE_GPU: "0"
-      # URL PUBBLICO del generator su RunPod (vedi sezione 2)
+      # URL pubblico del servizio di generazione remoto su RunPod
       TOKENOPT_RUNPOD_URL: ${TOKENOPT_RUNPOD_URL}
+      # Modulo settings Django da caricare
       DJANGO_SETTINGS_MODULE: tokenopt_site.settings
+      # URL del broker Celery (Redis)
       CELERY_BROKER_URL: redis://redis:6379/0
+      # Backend per i risultati Celery (Redis)
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # PYTHONPATH per rendere importabili entrambe le repository
       PYTHONPATH: /app/tokenopt_generator:/app/tokenopt_site
+    # Dipendenze di avvio del servizio
     depends_on:
+      # Il servizio web parte solo dopo che Redis è healthy
       redis:
         condition: service_healthy
+
+    # Volumi montati dall'host al container
     volumes:
+      # Monta il codice Django locale nel container
       - ./tokenopt_site:/app/tokenopt_site
+      # Monta il codice del generator locale nel container
       - ./tokenopt_generator:/app/tokenopt_generator
 
+
+  # ============================
+  # Servizio Worker (Celery)
+  # ============================
+
+  # Container che esegue i task asincroni
   worker:
     env_file:
       - .env
+    # Usa la stessa immagine del servizio web
     image: tokenopt:dev
+    # Configurazione di build (identica al web)
     build:
       context: .
       args:
         APP_ENV: dev
+    # Directory di lavoro del container
     working_dir: /app/tokenopt_site
+    # Comando che avvia il worker Celery
     command: celery -A tokenopt_site worker -l info
+    # Variabili d'ambiente del worker
     environment:
+      # Anche il worker non usa GPU locale
       TOKENOPT_ENABLE_GPU: "0"
+      # URL RunPod per delegare la generazione remota
       TOKENOPT_RUNPOD_URL: ${TOKENOPT_RUNPOD_URL}
+      # Settings Django (necessari anche nel worker)
       DJANGO_SETTINGS_MODULE: tokenopt_site.settings
+      # Broker Celery (Redis)
       CELERY_BROKER_URL: redis://redis:6379/0
+      # Backend risultati Celery
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # PYTHONPATH per import condivisi
       PYTHONPATH: /app/tokenopt_generator:/app/tokenopt_site
+    # Il worker parte solo quando Redis è pronto
     depends_on:
       redis:
         condition: service_healthy
+    # Volumi per sviluppo live
     volumes:
       - ./tokenopt_site:/app/tokenopt_site
       - ./tokenopt_generator:/app/tokenopt_generator
