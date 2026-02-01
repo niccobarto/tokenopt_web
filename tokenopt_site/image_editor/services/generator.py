@@ -115,6 +115,7 @@ def _generate_inpainting_runpod(
 
     status_url=f"{RUNPOD_URL.rstrip('/')}/jobs/{job_id}"
     while True:
+        time.sleep(10)
         r=requests.get(status_url, timeout=10)
         r.raise_for_status()
         if r.status_code==404:
@@ -130,7 +131,6 @@ def _generate_inpainting_runpod(
         if payload["status"]=="FAILED":
             raise RuntimeError(payload.get("error"))
 
-        time.sleep(10)
 
     return _save_image_bytes(results,job.id)
 
