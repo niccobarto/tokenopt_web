@@ -18,11 +18,11 @@ configs_implemented = [
         name="config1",
         tto_params=dict(
             num_iter=351,
-            ema_decay=0.97,
+            ema_decay=0.98,
             lr=1e-1,
             enable_amp=True,
             reg_weight=2.5e-2,
-            token_noise=2e-4,
+            token_noise=2e-5,
             reg_type="seed",
 
         ),
@@ -35,15 +35,15 @@ configs_implemented = [
                          ObjectiveType.ComposedCLIP]
     ),
     add_conf(
-        #name="C3_RECON_STRONG_RESET",
+        #name="C2_RESET",
         name="config2",
         tto_params=dict(
             num_iter=351,
-            ema_decay=0.95,
+            ema_decay=0.98,
             lr=1e-1,
             enable_amp=True,
             reg_weight=2.0e-2,
-            token_noise=2e-4,
+            token_noise=2e-5,
             reg_type="seed",
 
         ),
@@ -56,7 +56,7 @@ configs_implemented = [
                          ObjectiveType.ComposedCLIP]
     ),
     add_conf(
-        #name="C4_CLIPONLY_RESET",
+        #name="C3_RESET",
         name="config3",
         tto_params=dict(
             num_iter=351,
@@ -64,23 +64,23 @@ configs_implemented = [
             lr=1e-1,
             enable_amp=True,
             reg_weight=2.0e-2,
-            token_noise=2e-4,
+            token_noise=2e-5,
             reg_type="seed",
 
         ),
         cfg_scale=1.5,
         num_aug=8,
-        weights=[1],
+        weights=[1,1.3],
         enable_token_reset=True,
         reset_period=15,
-        objective_types=[ObjectiveType.ComposedCLIP]
+        objective_types=[ObjectiveType.ReconstructionObjective,ObjectiveType.ComposedCLIP]
     ),
     add_conf(
         #name="BALANCED_RESET",
         name="config4",
         tto_params=dict(
             num_iter=351,
-            ema_decay=0.98,
+            ema_decay=0.97,
             lr=1e-1,
             enable_amp=True,
             reg_weight=0.02,
@@ -90,10 +90,10 @@ configs_implemented = [
         ),
         cfg_scale=1.5,
         num_aug=8,
-        weights=[1],
+        weights=[5,1],
         enable_token_reset=True,
         reset_period=15,
-        objective_types=[ObjectiveType.ComposedCLIP]
+        objective_types=[ObjectiveType.ReconstructionObjective,ObjectiveType.ComposedCLIP]
     )
 ]
 
