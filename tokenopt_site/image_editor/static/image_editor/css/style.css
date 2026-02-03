@@ -1361,6 +1361,57 @@ h4{
     color: #7f1d1d;
 }
 
+
+.result-item {
+    cursor: pointer; /* rende chiaro che è cliccabile */
+}
+
+/* stato selezionato */
+.result-item.is-selected {
+    border-color: rgba(56, 189, 248, 0.65);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+}
+
+/* overlay check in alto a destra */
+.result-image-wrapper .select-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 16px;
+    font-weight: 900;
+
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+
+    opacity: 0;
+    transform: scale(0.9);
+    transition: opacity 0.12s ease, transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.select-indicator { pointer-events: none; }
+
+.result-item.is-selected .select-indicator {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(135deg, rgba(56,189,248,0.95), rgba(34,197,94,0.85));
+    border-color: rgba(56, 189, 248, 0.55);
+    color: #07101f;
+}
+
+/* facoltativo: leggero “focus” visivo sull’immagine selezionata */
+.result-item.is-selected img {
+    filter: saturate(1.05) contrast(1.03);
+}
+
 /* Mobile */
 @media (max-width: 520px) {
     .results-section {

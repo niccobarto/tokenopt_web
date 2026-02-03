@@ -15,6 +15,34 @@ const clearButton = document.getElementById("clear");
 const downloadButton = document.getElementById("downloadBtn");
 const resultsSection = document.getElementById("resultsSection");
 const resultsGrid = document.getElementById("resultsGrid");
+const SELECTED_RESULTS = new Map(); // key: imgIndex (number), value: imageUrl (string)
+// ==============================
+// RESULT SELECTION STATE
+// ==============================
+function updateDownloadButtonState() {
+    if (!downloadButton) return;
+    const count = SELECTED_RESULTS.size;
+    downloadButton.disabled = (count === 0);
+    downloadButton.textContent = count > 0 ? `Download (${count})` : "Download";
+}
+
+// infer estensione da Content-Type (fallback png)
+function extFromContentType(contentType) {
+    if (!contentType) return "png";
+    if (contentType.includes("image/jpeg")) return "jpg";
+    if (contentType.includes("image/png")) return "png";
+    if (contentType.includes("image/webp")) return "webp";
+    return "png";
+}
+
+async function fetchImageAsBlob(url) {
+    const resp = await fetch(url, {cache: "no-store"});
+    if (!resp.ok) throw new Error(`Impossibile scaricare: ${url}`);
+    const blob = await resp.blob();
+    const ext = extFromContentType(resp.headers.get("content-type"));
+    return {blob, ext};
+}
+
 
 let hasBackgroundImage = false;
 
@@ -357,78 +385,51 @@ function maskCanvasToDataURL() {
 }
 
 
-// ---------- DOWNLOAD ZIP (original + mask) ----------
-
-// helper: aggiunge un ImageData come PNG (bianco/nero) allo zip
-async function addImageDataBinaryToZip(zip, imageData, filename, invert = false) {
-    const w = imageData.width;
-    const h = imageData.height;
-
-    const tmpCanvas = document.createElement("canvas");
-    tmpCanvas.width = w;
-    tmpCanvas.height = h;
-    const tmpCtx = tmpCanvas.getContext("2d");
-
-    const outImageData = tmpCtx.createImageData(w, h);
-    const src = imageData.data;
-    const dst = outImageData.data;
-
-    // Uso l'alpha per distinguere "disegnato" (maschera) vs trasparente
-    for (let i = 0; i < src.length; i += 4) {
-        const a = src[i + 3]; // alpha 0..255
-        let bw = a > 0 ? 0 : 255; // dentro mask=0 (nero), fuori=255 (bianco)
-        if (invert) bw = 255 - bw;
-
-        dst[i] = bw;
-        dst[i + 1] = bw;
-        dst[i + 2] = bw;
-        dst[i + 3] = 255;
-    }
-
-    tmpCtx.putImageData(outImageData, 0, 0);
-    const dataURL = tmpCanvas.toDataURL("image/png");
-    const base64 = dataURL.split(",")[1];
-
-    zip.file(filename, base64, {base64: true});
-}
-
-// helper: aggiunge un canvas allo zip come PNG
-function addCanvasToZip(zip, canvas, filename) {
-    const dataURL = canvas.toDataURL("image/png");
-    const base64 = dataURL.split(",")[1];
-    zip.file(filename, base64, {base64: true});
-}
-
-// click su "Download zip"
+// ==============================
+// DOWNLOAD ZIP (selected results)
+// ==============================
 if (downloadButton) {
     downloadButton.addEventListener("click", async () => {
-        if (!hasBackgroundImage) {
-            alert("Carica prima un'immagine di sfondo.");
+        const selectedCount = SELECTED_RESULTS.size;
+        if (selectedCount === 0) {
+            alert("Seleziona almeno un'immagine da scaricare.");
             return;
         }
 
-        const zip = new JSZip();
+        downloadButton.disabled = true;
+        const oldText = downloadButton.textContent;
+        downloadButton.textContent = "Preparazione ZIP...";
 
-        // 1) original.png -> background
-        addCanvasToZip(zip, bgCanvasElement, "original.png");
+        try {
+            const zip = new JSZip();
 
-        // 2) mask.png -> maschera corrente dal canvas principale
-        const maskData = context.getImageData(0, 0, canvasElement.width, canvasElement.height);
-        await addImageDataBinaryToZip(zip, maskData, "mask.png", false);
+            // ordino per index per avere nomi coerenti
+            const entries = Array.from(SELECTED_RESULTS.entries()).sort((a, b) => a[0] - b[0]);
 
-        // genera lo zip e scarica
-        const blob = await zip.generateAsync({type: "blob"});
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "images.zip";
-        a.click();
+            for (const [imgIndex, url] of entries) {
+                const {blob, ext} = await fetchImageAsBlob(url);
+                // nome file: variante_1.png, variante_2.png, ...
+                const filename = `variante_${imgIndex + 1}.${ext}`;
+                zip.file(filename, blob);
+            }
 
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            const zipBlob = await zip.generateAsync({type: "blob"});
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(zipBlob);
+            a.download = "selected_images.zip";
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+
+        } catch (e) {
+            console.error("Errore download zip:", e);
+            alert("Errore durante la creazione dello ZIP.");
+        } finally {
+            downloadButton.disabled = (SELECTED_RESULTS.size === 0);
+            downloadButton.textContent = oldText.includes("Download") ? oldText : "Download";
+            updateDownloadButtonState();
+        }
     });
 }
-// ======================================================
-// Fine single-mask editor
-// ======================================================
 
 
 function getCookie(name) {
@@ -761,52 +762,84 @@ function checkGenerationStatus() {
                 if (resultsGrid) {
                     // Svuoto la griglia
                     resultsGrid.innerHTML = "";
+                    SELECTED_RESULTS.clear();
+                    updateDownloadButtonState();
 
                     if (data.generated_images && data.generated_images.length > 0) {
                         data.generated_images.forEach((url, index) => {
 
-                            // <figure class="result-item">
+                            // 1) Creo figure + wrapper
                             const figure = document.createElement("figure");
                             figure.className = "result-item";
 
-                            // <div class="result-image-wrapper">
                             const wrapper = document.createElement("div");
                             wrapper.className = "result-image-wrapper";
 
-                            // <img src="...">
+                            // 2) Indicator (✓) OVERLAY
+                            const indicator = document.createElement("div");
+                            indicator.className = "select-indicator";
+                            indicator.textContent = "✓";
+
+                            // 3) Img
                             const img = document.createElement("img");
                             img.src = url;
                             img.alt = `Variante ${index + 1}`;
                             img.loading = "lazy";
-                            img.id = `result-img-${index}`;  // utile per aggiornare l’immagine dopo SR
+                            img.dataset.imgIndex = String(index);
 
-                            // <figcaption>
+                            // 4) Caption
                             const caption = document.createElement("figcaption");
                             caption.className = "result-caption";
                             caption.textContent = `Variante ${index + 1}`;
 
-                            // === PULSANTE SUPER-RESOLUTION ===
+                            // 5) SR button + status
                             const srButton = document.createElement("button");
                             srButton.type = "button";
                             srButton.className = "sr-btn";
                             srButton.textContent = "Super-Resolution";
 
-                            // Salviamo l’URL dell’immagine nel bottone
-                            srButton.dataset.imageUrl = url;
-                            srButton.dataset.imgIndex = index;
-
-                            // === DIV DI STATO SR ===
                             const srStatus = document.createElement("div");
                             srStatus.className = "sr-status";
                             srStatus.id = `sr-status-${index}`;
 
-                            // Click sul pulsante SR
-                            srButton.addEventListener("click", async () => {
+                            // =======================
+                            // COSTRUZIONE DOM (QUI)
+                            // =======================
+                            wrapper.appendChild(img);
+                            wrapper.appendChild(indicator);
+
+                            figure.appendChild(wrapper);
+                            figure.appendChild(caption);
+                            figure.appendChild(srButton);
+                            figure.appendChild(srStatus);
+
+                            // =======================
+                            // LISTENERS (DOPO)
+                            // =======================
+                            function toggleSelection() {
+                                const isSelected = figure.classList.toggle("is-selected");
+                                const idx = Number(img.dataset.imgIndex);
+
+                                if (isSelected) SELECTED_RESULTS.set(idx, img.src);
+                                else SELECTED_RESULTS.delete(idx);
+
+                                updateDownloadButtonState();
+                            }
+
+                            figure.addEventListener("click", (e) => {
+                                if (e.target.closest(".sr-btn") || e.target.closest(".sr-status")) return;
+                                toggleSelection();
+                            });
+
+                            srButton.addEventListener("click", async (e) => {
+                                e.stopPropagation();
+
                                 srButton.disabled = true;
                                 srStatus.textContent = "Super-resolution in avvio...";
 
                                 try {
-                                    const srJobId = await startSuperResolution(url);
+                                    const currentUrl = img.src;
+                                    const srJobId = await startSuperResolution(currentUrl);
                                     startSuperResolutionPolling(srJobId, srStatus, img);
                                 } catch (err) {
                                     console.error(err);
@@ -816,20 +849,13 @@ function checkGenerationStatus() {
                                 }
                             });
 
-                            // Costruzione DOM
-                            wrapper.appendChild(img);
-                            figure.appendChild(wrapper);
-                            figure.appendChild(caption);
-                            figure.appendChild(srButton);
-                            figure.appendChild(srStatus);
+                            srStatus.addEventListener("click", (e) => e.stopPropagation());
 
+                            // 6) Inserisco nel grid
                             resultsGrid.appendChild(figure);
-                        });
 
-                        // Abilito il pulsante di download se ci sono immagini
-                        if (downloadButton) {
-                            downloadButton.disabled = false;
-                        }
+                        });
+                        updateDownloadButtonState();
 
                     } else {
                         // Nessuna immagine trovata
@@ -928,6 +954,12 @@ function startSuperResolutionPolling(jobId, statusDiv, imgElement) {
 
                     if (data.output_url && imgElement) {
                         imgElement.src = data.output_url
+                        // se quell'immagine era selezionata, aggiorna l'URL selezionato
+                        const idx = Number(imgElement.dataset.imgIndex);
+                        if (SELECTED_RESULTS.has(idx)) {
+                            SELECTED_RESULTS.set(idx, data.output_url);
+                            updateDownloadButtonState();
+                        }
                     }
 
                     clearInterval(intervalId);
@@ -945,3 +977,5 @@ function startSuperResolutionPolling(jobId, statusDiv, imgElement) {
 
     SUPERRES_POLLING_INTERVALS.set(jobId, intervalId);
 }
+
+
