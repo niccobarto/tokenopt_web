@@ -1413,7 +1413,7 @@ h4{
 }
 
 /* Mobile */
-@media (max-width: 520px) {
+@media (max-width: 900px) {
     .results-section {
         padding: 14px;
         border-radius: 18px;
