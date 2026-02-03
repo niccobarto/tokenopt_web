@@ -120,7 +120,7 @@ def _generate_inpainting_runpod(
         r.raise_for_status()
         if r.status_code==404:
             raise RuntimeError("La generazione ha prodotto un errore!")
-        elif r.status_code==102:
+        elif r.status_code==202:
             continue
 
         payload=r.json()
