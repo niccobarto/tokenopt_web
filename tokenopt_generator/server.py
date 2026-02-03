@@ -94,7 +94,7 @@ def job_status(job_id:str):
     if not job:
         raise HTTPException(status_code=404, detail="Job non trovato")
     if job["status"]=="RUNNING" or job["status"]=="QUEUED":
-        return HttpResponse("Job non completato",status=102)
+        return JSONResponse({"detail": "Job non completato"}, status_code=202)
     return JSONResponse(content=job)
 
 @app.post("/remove-background")
